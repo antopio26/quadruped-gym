@@ -1,9 +1,9 @@
 <mujoco>
     <compiler meshdir="./mesh" texturedir="./textures" />
 
-     <option cone="pyramidal" impratio="100" iterations="1" ls_iterations="5">
+    <option cone="pyramidal" impratio="100" iterations="1" ls_iterations="5" integrator="RK4">
         <flag eulerdamp="disable"/>
-     </option>
+    </option>
 
     <default>
         <default class="quadruped">
@@ -19,7 +19,7 @@
             />
 
             <default class="hip">
-                <joint range="0 90"/>
+                <joint range="-45 45" ref="-45"/>
                 <position ctrlrange="-1 1"/>
             </default>
 
@@ -33,8 +33,6 @@
                 <position ctrlrange="-1 1"/>
             </default>
         </default>
-
-
     </default>
 
     <worldbody>
@@ -44,65 +42,66 @@
 
             <body name="fema_1" pos="-0.0336 0.02700 0.0195">
                 <joint name="hip_1" class="hip"/>
-                <geom name="fema_1 geom" mesh="FEMA"/>
+                <geom name="fema_1 geom" mesh="FEMA" group="1"/>
 
                 <body name="shin_1" pos="0.0269 0.0381 -0.0358" euler="0 90 0">
                     <joint name="knee_1" class="knee"/>
-                    <geom name="shin_1 geom" mesh="SHIN"/>
+                    <geom name="shin_1 geom" mesh="SHIN" group="1"/>
 
-                    <body name="foot_1" pos="0.0 0.0798 -0.0006" >
+                    <body name="foot_1" pos="0.0 0.0798 -0.0006">
                         <joint name="ankle_1" class="ankle"/>
-                        <geom name="foot_1 geom" mesh="FOOT"/>
+                        <geom name="foot_1 geom" mesh="FOOT" group="1"/>
                     </body>
                 </body>
             </body>
 
             <body name="fema_2" pos="-0.02700 -0.0336 0.0195" euler="0 0 90">
                 <joint name="hip_2" class="hip"/>
-                <geom name="fema_2 geom" mesh="FEMA"/>
+                <geom name="fema_2 geom" mesh="FEMA" group="2"/>
 
                 <body name="shin_2" pos="0.0269 0.0381 -0.0358" euler="0 90 0">
                     <joint name="knee_2" class="knee"/>
-                    <geom name="shin_2 geom" mesh="SHIN"/>
+                    <geom name="shin_2 geom" mesh="SHIN" group="2"/>
 
-                    <body name="foot_2" pos="0.0 0.0798 -0.0006" >
+                    <body name="foot_2" pos="0.0 0.0798 -0.0006">
                         <joint name="ankle_2" class="ankle"/>
-                        <geom name="foot_2 geom" mesh="FOOT"/>
+                        <geom name="foot_2 geom" mesh="FOOT" group="2"/>
                     </body>
                 </body>
             </body>
 
             <body name="fema_3" pos="0.0336 -0.02700 0.0195" euler="0 0 180">
                 <joint name="hip_3" class="hip"/>
-                <geom name="fema_3 geom" mesh="FEMA"/>
+                <geom name="fema_3 geom" mesh="FEMA" group="3"/>
 
                 <body name="shin_3" pos="0.0269 0.0381 -0.0358" euler="0 90 0">
                     <joint name="knee_3" class="knee"/>
-                    <geom name="shin_3 geom" mesh="SHIN"/>
+                    <geom name="shin_3 geom" mesh="SHIN" group="3"/>
 
                     <body name="foot_3" pos="0.0 0.0798 -0.0006">
                         <joint name="ankle_3" class="ankle"/>
-                        <geom name="foot_3 geom" mesh="FOOT"/>
+                        <geom name="foot_3 geom" mesh="FOOT" group="3"/>
                     </body>
                 </body>
             </body>
 
             <body name="fema_4" pos="0.0270 0.0336 0.0195" euler="0 0 -90">
                 <joint name="hip_4" class="hip"/>
-                <geom name="fema_4 geom" mesh="FEMA"/>
+                <geom name="fema_4 geom" mesh="FEMA" group="4"/>
 
                 <body name="shin_4" pos="0.0269 0.0381 -0.0358" euler="0 90 0">
                     <joint name="knee_4" class="knee"/>
-                    <geom name="shin_4 geom" mesh="SHIN"/>
+                    <geom name="shin_4 geom" mesh="SHIN" group="4"/>
 
                     <body name="foot_4" pos="0.0 0.0798 -0.0006">
                         <joint name="ankle_4" class="ankle"/>
-                        <geom name="foot_4 geom" mesh="FOOT"/>
+                        <geom name="foot_4 geom" mesh="FOOT" group="4"/>
                     </body>
                 </body>
             </body>
         </body>
     </worldbody>
+
     <asset>
         <mesh name="FRAME" file="FRAME.obj"/>
         <mesh name="FEMA" file="FEMA.obj"/>
@@ -112,6 +111,7 @@
         <texture name="robot_texture" type="2d" file="colors.png"/>
         <material name="robot_material" texture="robot_texture" texuniform="true" rgba="1 1 1 1"/>
     </asset>
+
     <actuator>
         <position joint="hip_1" class="hip"/>
         <position joint="knee_1" class="knee"/>
