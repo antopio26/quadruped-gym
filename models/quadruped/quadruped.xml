@@ -1,0 +1,54 @@
+<mujoco>
+    <compiler meshdir="./mesh" texturedir="./textures"/>
+    <worldbody>
+        <body name="FRAME" pos="0.0 0.0 0.1" quat="1.0 0.0 0.0 0.0">
+            <geom type="mesh" name="FRAME geom" mesh="FRAME" material="robot_material"/>
+            <body name="Fema_1" pos="-0.0336 0.02700 0.0195" quat="1.0 0.0 0.0 0.0">
+                <geom type="mesh" name="Fema_1 geom" mesh="FEMA" material="robot_material"/>
+                <body name="Shin_1" pos="0.0269 0.0381 -0.0358" quat="0.70711 0.0 0.70711 0.0">
+                    <geom type="mesh" name="Shin_1 geom" mesh="SHIN" material="robot_material"/>
+                    <body name="Foot_1" pos="0.0 0.0798 -0.0006" quat="1.0 0.0 0.0 0.0">
+                        <geom type="mesh" name="Foot_1 geom" mesh="FOOT" material="robot_material"/>
+                    </body>
+                </body>
+            </body>
+            <body name="Fema_2" pos="-0.02700 -0.0336 0.0195" quat="0.70711 0.0 0.0 0.70711">
+                <geom type="mesh" name="Fema_2 geom" mesh="FEMA" material="robot_material"/>
+                <body name="Shin_2" pos="0.0269 0.0381 -0.0358" quat="0.70711 0.0 0.70711 0.0">
+                    <geom type="mesh" name="Shin_2 geom" mesh="SHIN" material="robot_material"/>
+                    <body name="Foot_2" pos="0.0 0.0798 -0.0006" quat="1.0 0.0 0.0 0.0">
+                        <geom type="mesh" name="Foot_2 geom" mesh="FOOT" material="robot_material"/>
+                    </body>
+                </body>
+            </body>
+            <body name="Fema_3" pos="0.0336 -0.02700 0.0195" quat="0.0 0.0 0.0 1.0">
+                <geom type="mesh" name="Fema_3 geom" mesh="FEMA" material="robot_material"/>
+                <body name="Shin_3" pos="0.0269 0.0381 -0.0358" quat="0.70711 0.0 0.70711 0.0">
+                    <geom type="mesh" name="Shin_3 geom" mesh="SHIN" material="robot_material"/>
+                    <body name="Foot_3" pos="0.0 0.0798 -0.0006" quat="1.0 0.0 0 0.0">
+                        <geom type="mesh" name="Foot_3 geom" mesh="FOOT" material="robot_material"/>
+                    </body>
+                </body>
+            </body>
+            <body name="Fema_4" pos="0.0270 0.0336 0.0195" quat="0.70711 0.0 0.0 -0.70711">
+                <geom type="mesh" name="Fema_4 geom" mesh="FEMA" material="robot_material"/>
+                <body name="Shin_4" pos="0.0269 0.0381 -0.0358" quat="0.70711 0.0 0.70711 0.0">
+                    <geom type="mesh" name="Shin_4 geom" mesh="SHIN" material="robot_material"/>
+                    <body name="Foot_4" pos="0.0 0.0798 -0.0006" quat="1.0 0.0 0.0 0.0">
+                        <geom type="mesh" name="Foot_4 geom" mesh="FOOT" material="robot_material"/>
+                    </body>
+                </body>
+            </body>
+        </body>
+    </worldbody>
+    <asset>
+        <mesh name="FRAME" file="FRAME.obj"/>
+        <mesh name="FEMA" file="FEMA.obj"/>
+        <mesh name="SHIN" file="SHIN.obj"/>
+        <mesh name="FOOT" file="FOOT.obj"/>
+
+        <texture name="robot_texture" type="2d" file="colors.png"/>
+        <material name="robot_material" texture="robot_texture" texuniform="true" rgba="1 1 1 1"/>
+        <material name="ground_material" rgba="0.8 0.8 0.8 1"/>
+    </asset>
+</mujoco>
