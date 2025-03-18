@@ -1,20 +1,25 @@
 <mujoco>
     <compiler angle="degree" meshdir="./mesh" texturedir="./textures" />
 
-    <option integrator="implicitfast" />
+    <option integrator="implicit" />
 
     <default>
         <default class="quadruped">
             <geom type="mesh" material="robot_material" friction="0.6" margin="0.001"/>
-            <joint axis="0 0 1" type="hinge" damping="0.5" armature="0.001"/>
+            <joint axis="0 0 1" type="hinge" damping="0.2" armature="0.001"/>
             <position   ctrlrange="-1 1"
                         forcerange="-1.71 1.71"
-                        kp="10"
-                        kv="0"
+                        kp="50"
+                        kv="1"
                         timeconst="0.01"
                         ctrllimited="true"
                         forcelimited="true"
             />
+
+            <!-- Gear ratio and adapted force range is set to map the control range from -1, 1 to -pi/2, pi/2 -->
+            <!-- Original force range is -1.1, 1.1  with gear ratio to 1 and range from -pi/, pi/2 -->
+            <!-- Damping controls actual speed of the servo (mesurements are needed to set this value) -->
+            <!-- With this setup damping indicates the speed of the servo in s/60° -->
 
             <default class="hip">
                 <joint range="-45 45" ref="-45"/>
@@ -164,4 +169,22 @@
         <position joint="knee_4" class="knee"/>
         <position joint="ankle_4" class="ankle"/>
     </actuator>
+
+    <sensor>
+        <jointpos joint="hip_1" name="hip_1_sensor"/>
+        <jointpos joint="knee_1" name="knee_1_sensor"/>
+        <jointpos joint="ankle_1" name="ankle_1_sensor"/>
+
+        <jointpos joint="hip_2" name="hip_2_sensor"/>
+        <jointpos joint="knee_2" name="knee_2_sensor"/>
+        <jointpos joint="ankle_2" name="ankle_2_sensor"/>
+
+        <jointpos joint="hip_3" name="hip_3_sensor"/>
+        <jointpos joint="knee_3" name="knee_3_sensor"/>
+        <jointpos joint="ankle_3" name="ankle_3_sensor"/>
+
+        <jointpos joint="hip_4" name="hip_4_sensor"/>
+        <jointpos joint="knee_4" name="knee_4_sensor"/>
+        <jointpos joint="ankle_4" name="ankle_4_sensor"/>
+    </sensor>
 </mujoco>
