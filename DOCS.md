@@ -267,25 +267,38 @@ env.close()
 | 11    | ankle_4| ankle |
 
 ### Sensors
-| Index | Joint       | Sensor Name       |
-|-------|-------------|-------------------|
-| 0     | hip_1       | hip_1_sensor      |
-| 1     | knee_1      | knee_1_sensor     |
-| 2     | ankle_1     | ankle_1_sensor    |
-| 3     | hip_2       | hip_2_sensor      |
-| 4     | knee_2      | knee_2_sensor     |
-| 5     | ankle_2     | ankle_2_sensor    |
-| 6     | hip_3       | hip_3_sensor      |
-| 7     | knee_3      | knee_3_sensor     |
-| 8     | ankle_3     | ankle_3_sensor    |
-| 9     | hip_4       | hip_4_sensor      |
-| 10    | knee_4      | knee_4_sensor     |
-| 11    | ankle_4     | ankle_4_sensor    |
-| 12    | Accelerometer | body_accelerometer |
-| 13    | Gyroscope   | body_gyro         |
-| 14    | Position    | body_position     |
-
-
+| Index | Joint/Site | Sensor Name    |
+|-------|------------|----------------|
+| 0     | hip_1      | hip_1_sensor   | 
+| 1     | knee_1     | knee_1_sensor  |
+| 2     | ankle_1    | ankle_1_sensor |
+| 3     | hip_2      | hip_2_sensor   |
+| 4     | knee_2     | knee_2_sensor  |
+| 5     | ankle_2    | ankle_2_sensor |
+| 6     | hip_3      | hip_3_sensor   |
+| 7     | knee_3     | knee_3_sensor  |
+| 8     | ankle_3    | ankle_3_sensor |
+| 9     | hip_4      | hip_4_sensor   |
+| 10    | knee_4     | knee_4_sensor  |
+| 11    | ankle_4    | ankle_4_sensor |
+| 12    | FRAME      | body_accel[x]  |
+| 13    | FRAME      | body_accel[y]  |
+| 14    | FRAME      | body_accel[z]  |
+| 15    | FRAME      | body_gyro[x]   |
+| 16    | FRAME      | body_gyro[y]   |
+| 17    | FRAME      | body_gyro[z]   |
+| 18    | FRAME      | body_pos[x]    |
+| 19    | FRAME      | body_pos[y]    |
+| 20    | FRAME      | body_pos[z]    |
+| 21    | FRAME      | body_linvel[x] |
+| 22    | FRAME      | body_linvel[y] |
+| 23    | FRAME      | body_linvel[z] |
+| 24    | FRAME      | body_xaxis[x]  |
+| 25    | FRAME      | body_xaxis[y]  |
+| 26    | FRAME      | body_xaxis[z]  |
+| 27    | FRAME      | body_zaxis[x]  |
+| 28    | FRAME      | body_zaxis[y]  |
+| 29    | FRAME      | body_zaxis[z]  |
 
 ---
 

@@ -172,27 +172,44 @@
     </actuator>
 
     <sensor>
+        <!-- Position sensors for the joints -->
+
+        <!-- Indices 0, 1, 2 -->
         <jointpos joint="hip_1" name="hip_1_sensor"/>
         <jointpos joint="knee_1" name="knee_1_sensor"/>
         <jointpos joint="ankle_1" name="ankle_1_sensor"/>
 
+        <!-- Indices 3, 4, 5 -->
         <jointpos joint="hip_2" name="hip_2_sensor"/>
         <jointpos joint="knee_2" name="knee_2_sensor"/>
         <jointpos joint="ankle_2" name="ankle_2_sensor"/>
 
+        <!-- Indices 6, 7, 8 -->
         <jointpos joint="hip_3" name="hip_3_sensor"/>
         <jointpos joint="knee_3" name="knee_3_sensor"/>
         <jointpos joint="ankle_3" name="ankle_3_sensor"/>
 
+        <!-- Indices 9, 10, 11 -->
         <jointpos joint="hip_4" name="hip_4_sensor"/>
         <jointpos joint="knee_4" name="knee_4_sensor"/>
         <jointpos joint="ankle_4" name="ankle_4_sensor"/>
 
         <!-- Accelerometer and gyroscope sensors for the body -->
-        <accelerometer site="FRAME" name="body_accelerometer"/>
+
+        <!-- Indices 12, 13, 14 -->
+        <accelerometer site="FRAME" name="body_accel"/>
+        <!-- Indices 15, 16, 17 -->
         <gyro site="FRAME" name="body_gyro"/>
 
         <!-- Position sensor for the body -->
-        <framepos objtype="body" objname="FRAME" name="body_position"/>
+
+        <!-- Indices 18, 19, 20 -->
+        <framepos objtype="site" objname="FRAME" name="body_pos"/>
+        <!-- Indices 21, 22, 23 -->
+        <framelinvel objtype="site" objname="FRAME" name="body_linvel"/>
+        <!-- Indices 24, 25, 26 -->
+        <framexaxis objtype="site" objname="FRAME" name="body_xaxis"/>
+        <!-- Indices 27, 28, 29 -->
+        <framezaxis objtype="site" objname="FRAME" name="body_zaxis"/>
     </sensor>
 </mujoco>

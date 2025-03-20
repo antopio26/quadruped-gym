@@ -49,7 +49,7 @@ class QuadrupedEnv(gym.Env):
                  reward_fns: dict = None,
                  termination_fns: dict = None,
                  save_video: bool = False,
-                 video_path: str = "simulation.mp4",
+                 video_path: str = "videos/simulation.mp4",
                  use_default_termination: bool = True):
         super().__init__()
         self.model_path = model_path
@@ -235,7 +235,6 @@ class QuadrupedEnv(gym.Env):
             self.video_writer = None
         cv2.destroyAllWindows()
 
-
 # Example usage:
 if __name__ == "__main__":
     # Example reward functions.
@@ -243,20 +242,18 @@ if __name__ == "__main__":
         # Reward based on forward velocity (assumes qvel[0] is forward velocity).
         return env.data.qvel[0]
 
-
     def control_cost(env):
         # Penalize high control inputs.
         return -0.1 * np.sum(np.square(env.data.ctrl))
 
-
     def alive_bonus(env):
         # Constant bonus for staying "alive".
-        return 1.0
+        return 1.0 * env.frame_skip
 
 
     # Instantiate the environment.
-    env = QuadrupedEnv(render_mode="human", render_fps=30,
-                       max_time=20, save_video=True)
+    env = QuadrupedEnv(render_mode="rgb_array", render_fps=30,
+                       save_video=True)
 
     # Assign reward functions.
     env.reward_fns = {
@@ -274,6 +271,10 @@ if __name__ == "__main__":
         obs, reward, terminated, truncated, info = env.step(action)
         total_reward += reward
         frame = env.render()  # Render returns a frame (for rgb_array) or displays it (for human).
+
+        if frame is not None:
+            print(obs)
+
         done = terminated or truncated
 
     print("Episode finished with reward:", total_reward)
