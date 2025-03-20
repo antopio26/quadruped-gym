@@ -1,3 +1,5 @@
 mujoco
 mujoco-mjx
 mediapy
+gymnasium
+opencv-python

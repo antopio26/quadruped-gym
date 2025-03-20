@@ -1,7 +1,7 @@
 <mujoco>
     <compiler angle="degree" meshdir="./mesh" texturedir="./textures" />
 
-    <option integrator="implicit" />
+    <option integrator="implicitfast" />
 
     <default>
         <default class="quadruped">
@@ -9,7 +9,7 @@
             <joint axis="0 0 1" type="hinge" damping="0.2" armature="0.001"/>
             <position   ctrlrange="-1 1"
                         forcerange="-1.71 1.71"
-                        kp="50"
+                        kp="100"
                         kv="1"
                         timeconst="0.01"
                         ctrllimited="true"
@@ -37,23 +37,23 @@
             </default>
 
             <default class="servo">
-                <geom mesh="SERVO" mass="0.055"/>
+                <geom mesh="SERVO" mass="0.056"/>
             </default>
 
             <default class="frame">
-                <geom mesh="FRAME" mass="0.022"/>
+                <geom mesh="FRAME" mass="0.018"/>
             </default>
 
             <default class="fema">
-                <geom mesh="FEMA" mass="0.011"/>
+                <geom mesh="FEMA" mass="0.022"/>
             </default>
 
             <default class="shin">
-                <geom mesh="SHIN" mass="0.020"/>
+                <geom mesh="SHIN" mass="0.013"/>
             </default>
 
             <default class="foot">
-                <geom mesh="FOOT" mass="0.06"/>
+                <geom mesh="FOOT" mass="0.07"/>
             </default>
         </default>
     </default>
@@ -66,6 +66,7 @@
             <geom name="hip_servo_2 geom" class="servo" group="2" pos="-0.0163 -0.0334 -0.0046" euler="0 0 90"/>
             <geom name="hip_servo_3 geom" class="servo" group="3" pos="0.0334 -0.0163 -0.0046" euler="0 0 180"/>
             <geom name="hip_servo_4 geom" class="servo" group="4" pos="0.0163 0.0334 -0.0046" euler="0 0 -90"/>
+            <site name="FRAME"/>
 
             <body name="fema_1" pos="-0.0336 0.02700 0.0195">
                 <joint name="hip_1" class="hip"/>
@@ -186,5 +187,12 @@
         <jointpos joint="hip_4" name="hip_4_sensor"/>
         <jointpos joint="knee_4" name="knee_4_sensor"/>
         <jointpos joint="ankle_4" name="ankle_4_sensor"/>
+
+        <!-- Accelerometer and gyroscope sensors for the body -->
+        <accelerometer site="FRAME" name="body_accelerometer"/>
+        <gyro site="FRAME" name="body_gyro"/>
+
+        <!-- Position sensor for the body -->
+        <framepos objtype="body" objname="FRAME" name="body_position"/>
     </sensor>
 </mujoco>
