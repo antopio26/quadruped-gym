@@ -107,6 +107,9 @@ print("Episode finished with reward:", total_reward)
 env.close()
 ```
 
+## Documentation
+For more detailed information, please refer to the documentation.
+
 ## License
 
 This project is licensed under the MIT License. See the `LICENSE` file for details.
