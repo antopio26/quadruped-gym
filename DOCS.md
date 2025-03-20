@@ -172,6 +172,96 @@ print("Episode finished with reward:", total_reward)
 env.close()
 ```
 
+## Quadruped Robot Model
+
+### Rendering Settings
+- **Compiler**: Angle in degrees, mesh directory `./mesh`, texture directory `./textures`
+- **Integrator**: Implicit fast
+
+### Default Settings
+- **General**:
+  - Geom: Mesh type, material `robot_material`, friction `0.6`, margin `0.001`
+  - Joint: Axis `0 0 1`, hinge type, damping `0.2`, armature `0.001`
+  - Position: Control range `-1 1`, force range `-1.71 1.71`, kp `100`, kv `1`, time constant `0.01`, control limited, force limited
+
+- **Specific Classes**:
+  - **Hip**: Joint range `-45 45`, reference `-45`, control range `-0.5 0.5`, gear `0.64`
+  - **Knee**: Joint range `-45 120`, reference `37.5`, control range `-0.91 0.91`, gear `0.64`
+  - **Ankle**: Joint range `-90 90`, reference `0`, control range `-1 1`, gear `0.64`
+  - **Servo**: Geom mesh `SERVO`, mass `0.056`
+  - **Frame**: Geom mesh `FRAME`, mass `0.018`
+  - **Fema**: Geom mesh `FEMA`, mass `0.022`
+  - **Shin**: Geom mesh `SHIN`, mass `0.013`
+  - **Foot**: Geom mesh `FOOT`, mass `0.07`
+
+### World Body
+- **Frame**:
+  - Position: `0.0 0.0 0.1`
+  - Child class: `quadruped`
+  - Joint: Free type
+  - Geoms: `FRAME`, `hip_servo_1`, `hip_servo_2`, `hip_servo_3`, `hip_servo_4`
+  - Site: `FRAME`
+
+- **Legs**:
+  - **Leg 1**: 
+    - Position: `-0.0336 0.02700 0.0195`
+    - Joints: `hip_1`, `knee_1`, `ankle_1`
+    - Geoms: `fema_1`, `knee_servo_1`, `shin_1`, `foot_1`, `ankle_servo_1`
+  - **Leg 2**: 
+    - Position: `-0.02700 -0.0336 0.0195`
+    - Joints: `hip_2`, `knee_2`, `ankle_2`
+    - Geoms: `fema_2`, `knee_servo_2`, `shin_2`, `foot_2`, `ankle_servo_2`
+  - **Leg 3**: 
+    - Position: `0.0336 -0.02700 0.0195`
+    - Joints: `hip_3`, `knee_3`, `ankle_3`
+    - Geoms: `fema_3`, `knee_servo_3`, `shin_3`, `foot_3`, `ankle_servo_3`
+  - **Leg 4**: 
+    - Position: `0.0270 0.0336 0.0195`
+    - Joints: `hip_4`, `knee_4`, `ankle_4`
+    - Geoms: `fema_4`, `knee_servo_4`, `shin_4`, `foot_4`, `ankle_servo_4`
+
+### Assets
+- **Meshes**: `FRAME.obj`, `FEMA.obj`, `SHIN.obj`, `FOOT.obj`, `SERVO.obj`
+- **Texture**: `colors.png`
+- **Material**: `robot_material`, texture `robot_texture`, texuniform `true`, rgba `1 1 1 1`
+
+### Actuators
+| Index | Joint  | Class |
+|-------|--------|-------|
+| 0     | hip_1  | hip   |
+| 1     | knee_1 | knee  |
+| 2     | ankle_1| ankle |
+| 3     | hip_2  | hip   |
+| 4     | knee_2 | knee  |
+| 5     | ankle_2| ankle |
+| 6     | hip_3  | hip   |
+| 7     | knee_3 | knee  |
+| 8     | ankle_3| ankle |
+| 9     | hip_4  | hip   |
+| 10    | knee_4 | knee  |
+| 11    | ankle_4| ankle |
+
+### Sensors
+| Index | Joint       | Sensor Name       |
+|-------|-------------|-------------------|
+| 0     | hip_1       | hip_1_sensor      |
+| 1     | knee_1      | knee_1_sensor     |
+| 2     | ankle_1     | ankle_1_sensor    |
+| 3     | hip_2       | hip_2_sensor      |
+| 4     | knee_2      | knee_2_sensor     |
+| 5     | ankle_2     | ankle_2_sensor    |
+| 6     | hip_3       | hip_3_sensor      |
+| 7     | knee_3      | knee_3_sensor     |
+| 8     | ankle_3     | ankle_3_sensor    |
+| 9     | hip_4       | hip_4_sensor      |
+| 10    | knee_4      | knee_4_sensor     |
+| 11    | ankle_4     | ankle_4_sensor    |
+| 12    | Accelerometer | body_accelerometer |
+| 13    | Gyroscope   | body_gyro         |
+| 14    | Position    | body_position     |
+
+
+
 ---
 
 # Summary
