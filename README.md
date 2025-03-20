@@ -1,5 +1,9 @@
 # Quadruped Simulation Environment
 
+## 3D Printable Model
+
+The robot model used in this simulation mirrors the following 3D printable robot: [MG 996R Quadruped Robot](https://makerworld.com/en/models/904181-mg-996r-quadruped-robot).
+
 ## Overview
 
 This project provides a custom Gymnasium environment for simulating a quadruped robot using MuJoCo. The environment supports various sensors, including accelerometers, gyroscopes, and position sensors, and allows for modular reward functions and termination conditions.
@@ -28,7 +32,7 @@ This project provides a custom Gymnasium environment for simulating a quadruped 
 
 1. Clone the repository:
    ```sh
-   git clone https://github.com/antopio26/quadruped-simulation.git
+   git clone https://github.com/antopio26/quadruped-gym.git
    cd quadruped-simulation
    ```
 
