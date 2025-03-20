@@ -14,7 +14,8 @@ class QuadrupedEnv(gym.Env):
     This environment loads the model from an XML file and simulates the dynamics.
     It applies user-specified control inputs, steps the simulation with an optional
     frame-skip, and supports both human and rgb_array render modes with decoupled
-    simulation time and rendering FPS.
+    simulation time and rendering FPS. When in human mode, the simulation is
+    synchronized to real time, regardless of frame_skip.
 
     Attributes:
         model (mujoco.MjModel): The MuJoCo model.
@@ -59,6 +60,7 @@ class QuadrupedEnv(gym.Env):
         self.render_fps = render_fps
         self.renderer = None  # Created on first render call.
         self._last_render_time = 0.0
+        self._sim_start_time = None  # Wall-clock time when simulation starts.
 
         # Update metadata with the render fps.
         self.metadata["render_fps"] = self.render_fps
@@ -91,12 +93,18 @@ class QuadrupedEnv(gym.Env):
     def reset(self, seed=None, options=None):
         """
         Reset the simulation to an initial state and return the initial observation.
+        Also resets the wall-clock timer for real-time synchronization.
         """
         mujoco.mj_resetData(self.model, self.data)
         self.data.time = 0.0
 
         # Set a default control (customize as needed).
         self.data.ctrl[:] = np.array([0, 0, -0.5] * 4)
+
+        # Set the wall-clock start time if running in human mode.
+        if self.render_mode == "human":
+            self._sim_start_time = time.time()
+
         observation = self._get_obs()
         return observation, {}
 
@@ -122,9 +130,13 @@ class QuadrupedEnv(gym.Env):
         """
         Apply the given action, advance the simulation, and return:
         observation, total_reward, terminated, truncated, info.
+        If running in human mode, synchronizes simulation time with wall-clock time.
         """
         # Clip the action to the valid range.
         action = np.clip(action, self.action_space.low, self.action_space.high)
+
+        # Record simulation time before stepping.
+        sim_time_before = self.data.time
 
         # Step simulation with frame skipping.
         for _ in range(self.frame_skip):
@@ -132,6 +144,16 @@ class QuadrupedEnv(gym.Env):
             mujoco.mj_step(self.model, self.data)
 
         observation = self._get_obs()
+
+        # If in human mode, synchronize simulation time with real time.
+        if self.render_mode == "human" and self._sim_start_time is not None:
+            # Compute how much simulation time has advanced.
+            sim_time_delta = self.data.time - sim_time_before
+            # Compute how much wall-clock time has passed.
+            wall_time_delta = time.time() - self._sim_start_time
+            # If simulation is ahead of real time, sleep.
+            if self.data.time > wall_time_delta:
+                time.sleep(self.data.time - wall_time_delta)
 
         # Compute rewards using all provided reward functions.
         total_reward = 0.0
@@ -153,7 +175,7 @@ class QuadrupedEnv(gym.Env):
         Render the simulation.
         - In 'rgb_array' mode, returns an image.
         - In 'human' mode, displays the image using OpenCV at the specified render_fps.
-        - When render_mode is None, this function returns immediately (for optimal training performance).
+        - When render_mode is None, returns immediately (optimal for training).
         """
         if self.render_mode is None:
             return
@@ -191,9 +213,32 @@ class QuadrupedEnv(gym.Env):
 
 # Example usage:
 if __name__ == "__main__":
-    # You can pass custom reward/termination functions via dictionaries.
-    # Here, we use the defaults.
-    env = QuadrupedEnv(render_mode="human", render_fps=10)
+    # Example reward functions.
+    def forward_reward(env):
+        # Reward based on forward velocity (assumes qvel[0] is forward velocity).
+        return env.data.qvel[0]
+
+
+    def control_cost(env):
+        # Penalize high control inputs.
+        return -0.1 * np.sum(np.square(env.data.ctrl))
+
+
+    def alive_bonus(env):
+        # Constant bonus for staying "alive".
+        return 1.0
+
+
+    # Instantiate the environment with a high frame_skip.
+    env = QuadrupedEnv(render_mode="human", render_fps=30)
+
+    # Assign reward functions.
+    env.reward_fns = {
+        "forward": lambda: forward_reward(env),
+        "control_cost": lambda: control_cost(env),
+        "alive_bonus": lambda: alive_bonus(env)
+    }
+
     obs, _ = env.reset()
     done = False
     total_reward = 0.0
