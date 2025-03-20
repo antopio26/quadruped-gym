@@ -4,7 +4,9 @@ The **QuadrupedEnv** class is a custom Gymnasium environment that wraps a MuJoCo
 
 ## Class Overview
 
-**Key Attributes:**
+Here is the updated documentation with the new parameter `use_default_termination`:
+
+### Key Attributes:
 
 - **Simulation Settings:**
   - `model`: The MuJoCo model loaded from an XML file.
@@ -19,11 +21,14 @@ The **QuadrupedEnv** class is a custom Gymnasium environment that wraps a MuJoCo
     - `None` disables rendering for optimal training performance.
   - `width` and `height`: Dimensions for rendering.
   - `render_fps`: The target FPS for display updates.
+  - `save_video`: Whether to save a video of the simulation. Default is `False`.
+  - `video_path`: Path to save the video file. Default is `"simulation.mp4"`.
   
 - **Modular Functions:**
   - `reward_fns`: A dictionary mapping names (strings) to reward callables. Each callable takes no arguments and returns a numeric reward value.
   - `termination_fns`: A dictionary mapping names to callables that return a Boolean indicating whether the episode should terminate.
-
+  - `use_default_termination`: Whether to use the default termination function. Default is `True`.
+  - 
 ## Using the Environment
 
 ### Instantiation
@@ -115,6 +120,26 @@ def fall_termination(env):
 # Add this condition to the environment.
 env.termination_fns["fall"] = lambda: fall_termination(env)
 ```
+
+### Video Saving Option
+
+The `QuadrupedEnv` class supports saving a video of the simulation. This can be useful for visualizing the agent's behavior during training or evaluation.
+
+**Parameters:**
+- `save_video` (bool): Whether to save a video of the simulation. Default is `False`.
+- `video_path` (str): Path to save the video file. Default is `"simulation.mp4"`.
+
+**Example Usage:**
+
+To enable video saving, set the `save_video` parameter to `True` and specify the `video_path` if needed:
+
+```python
+env = QuadrupedEnv(render_mode="human", render_fps=30, save_video=True, video_path="output/simulation.mp4")
+```
+
+This will save the video to the specified path. The video will be recorded at the specified `render_fps`.
+
+**Note:** Ensure that the `cv2` library is installed and properly configured to use the video saving feature.
 
 ### Complete Example
 
