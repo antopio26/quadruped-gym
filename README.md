@@ -1,5 +1,7 @@
 # Quadruped Simulation Environment
 
+![Dancing Quadruped](images/simulation_random_actuation.gif)
+
 This project provides a custom Gymnasium environment for simulating a quadruped robot using MuJoCo. The environment supports various sensors, including accelerometers, gyroscopes, and position sensors, and allows for modular reward functions and termination conditions.
 
 ## 3D Printable Model
