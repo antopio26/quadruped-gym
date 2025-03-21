@@ -106,7 +106,7 @@ env.close()
 ```
 
 ## Documentation
-For more detailed information, please refer to the documentation.
+For more detailed information, please refer to the [documentation](DOCS.md).
 
 ## License
 
