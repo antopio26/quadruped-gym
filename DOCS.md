@@ -2,44 +2,54 @@
 
 The **QuadrupedEnv** class is a custom Gymnasium environment that wraps a MuJoCo simulation of a quadruped. It is designed to be modular so you can easily customize reward components and termination conditions. In addition, the simulation’s physics runs at its natural (time-step) speed while rendering is throttled to a specified frame rate (FPS). When rendering is disabled (by setting `render_mode=None`), the environment incurs no rendering overhead—ideal for fast training.
 
-## Class Overview
+## Overview
 
-Here is the updated documentation with the new parameter `use_default_termination`:
+The Quadruped simulation environment is built on the MuJoCo physics engine and is designed for both training and visualization. Its modular design allows you to customize reward components, termination conditions, and rendering settings. The main classes covered include:
 
-### Key Attributes:
+- **QuadrupedEnv:** The base environment class.
+- **ControlInputs:** A helper class to manage velocity and heading inputs.
+- **WalkingQuadrupedEnv:** An extension of QuadrupedEnv that includes additional sensors and reward components for walking behaviors.
 
-- **Simulation Settings:**
-  - `model`: The MuJoCo model loaded from an XML file.
-  - `data`: The simulation data object.
-  - `max_time`: Maximum episode duration (seconds).
-  - `frame_skip`: Number of simulation steps per call to `step()`.
+
+## Environment Configuration
+
+### Simulation Settings
+- **model:** The MuJoCo model loaded from an XML file.
+- **data:** The simulation data object.
+- **max_time:** Maximum episode duration (seconds).
+- **frame_skip:** Number of simulation steps per call to `step()`.
+
+### Rendering Settings
+- **render_mode:** Options include `"human"`, `"rgb_array"`, or `None`.
+  - *Human mode* displays the simulation using OpenCV.
+  - *RGB array mode* returns an image as a NumPy array.
+  - Setting to `None` disables rendering for optimal training performance.
+- **width** and **height:** Dimensions for rendering.
+- **render_fps:** Target frames per second for display updates.
+- **save_video:** If `True`, the simulation video will be saved.
+- **video_path:** File path to save the video (default: `"simulation.mp4"`).
+
+### Modular Functions
+- **Reward Functions (`reward_fns`):**  
+  A dictionary mapping names to reward callables (each takes no arguments and returns a numeric value). These functions are summed at each simulation step.
   
-- **Rendering Settings:**
-  - `render_mode`: `"human"`, `"rgb_array"`, or `None`.  
-    - *Human mode* uses OpenCV to display the simulation.
-    - *RGB array mode* returns an image as a NumPy array.
-    - `None` disables rendering for optimal training performance.
-  - `width` and `height`: Dimensions for rendering.
-  - `render_fps`: The target FPS for display updates.
-  - `save_video`: Whether to save a video of the simulation. Default is `False`.
-  - `video_path`: Path to save the video file. Default is `"simulation.mp4"`.
-  
-- **Modular Functions:**
-  - `reward_fns`: A dictionary mapping names (strings) to reward callables. Each callable takes no arguments and returns a numeric reward value.
-  - `termination_fns`: A dictionary mapping names to callables that return a Boolean indicating whether the episode should terminate.
-  - `use_default_termination`: Whether to use the default termination function. Default is `True`.
-  - 
+- **Termination Functions (`termination_fns`):**  
+  A dictionary mapping names to callables that return a Boolean indicating whether the episode should terminate. The episode ends if any condition is met.
+
+- **use_default_termination:**  
+  A flag to enable the built-in termination based on simulation time.
+
 ## Using the Environment
 
 ### Instantiation
 
-To create an instance of the environment, simply pass the desired parameters. For example:
+Create an environment instance by passing the desired parameters. For example:
 
 ```python
 env = QuadrupedEnv(render_mode="human", render_fps=60)
 ```
 
-This creates an environment that will display the simulation at 60 FPS while running the simulation at its native time step. For training (when you do not need visualization), set `render_mode=None`:
+For training without visualization:
 
 ```python
 env = QuadrupedEnv(render_mode=None)
@@ -47,44 +57,31 @@ env = QuadrupedEnv(render_mode=None)
 
 ### Modular Reward Functions
 
-The environment allows you to combine several reward components. Reward functions are stored in the `reward_fns` dictionary, and at every step the environment calls each function (with no arguments) and sums their outputs to compute the total reward.
+Reward functions can be set up in two ways:
 
-**How to Define Reward Functions:**
-
-Reward functions should be defined as callables that access the environment’s internal state (typically through `env.data`). There are two common ways to do this:
-
-1. **Using Lambdas that Capture the Environment:**  
-   After instantiating the environment, assign your reward functions to `env.reward_fns`:
+1. **Assigning Callables After Instantiation:**  
+   Define functions that access `env.data` and then add them to the `reward_fns` dictionary:
 
    ```python
    def forward_reward(env):
-       # Assume forward velocity is stored in qvel[0]
        return env.data.qvel[0]
 
    def control_cost(env):
-       # Penalize high control efforts (using a coefficient of 0.1)
        return -0.1 * np.sum(np.square(env.data.ctrl))
 
    def alive_bonus(env):
-       # Constant bonus for remaining "alive"
        return 1.0
 
-   # Instantiate the environment.
    env = QuadrupedEnv(render_mode="human", render_fps=60)
-   # Assign reward functions.
    env.reward_fns = {
        "forward": lambda: forward_reward(env),
        "control_cost": lambda: control_cost(env),
        "alive_bonus": lambda: alive_bonus(env)
    }
    ```
-   
-**How Rewards Are Combined:**  
-At each call to `step()`, the environment iterates over `reward_fns` and sums the returned values. This modular design makes it easy to add, remove, or adjust reward components without modifying the core simulation loop.
 
-
-2. **Subclassing QuadrupedEnv to Include Reward Methods:**  
-   You can subclass the environment and define reward functions as instance methods. This approach is useful when you have many reward components and want to keep the code organized:
+2. **Subclassing QuadrupedEnv:**  
+   Define reward functions as instance methods for better organization:
 
    ```python
    class CustomQuadrupedEnv(QuadrupedEnv):
@@ -96,172 +93,158 @@ At each call to `step()`, the environment iterates over `reward_fns` and sums th
 
        def alive_bonus(self):
            return 1.0
-   
+
+       # Override default reward function
        def _default_reward(self):
            return self.forward_reward() + self.control_cost() + self.alive_bonus()
 
-   # Instantiate and assign rewards using bound methods.
    env = CustomQuadrupedEnv(render_mode="human", render_fps=60)
    ```
 
+   You can override the default reward function or again use lambdas that wrap the child class methods and setting them as custom reward functions.
+
+   ```python
+   class CustomQuadrupedEnv(QuadrupedEnv):
+       def forward_reward(self):
+           return self.data.qvel[0]
+
+       def control_cost(self):
+           return -0.1 * np.sum(np.square(self.data.ctrl))
+
+       def alive_bonus(self):
+           return 1.0
+
+       # No override of default reward function
+
+   env = CustomQuadrupedEnv(render_mode="human", render_fps=60)
+   env.reward_fns = {
+       "forward": lambda: env.forward_reward(),
+       "control_cost": lambda: env.control_cost(),
+       "alive_bonus": lambda: env.alive_bonus()
+   }
+   ```
+
+
 ### Modular Termination Conditions
 
-The termination conditions work similarly to reward functions. Each callable in the `termination_fns` dictionary should return a Boolean indicating whether its respective condition is met. The episode terminates if **any** termination condition returns `True`.
-
-**Example Termination Function:**
+Termination conditions work similarly to rewards. Each callable in the `termination_fns` dictionary should return a Boolean value. For instance:
 
 ```python
 def fall_termination(env):
-    # Terminate if the quadruped's height falls below 0.2.
-    # Here we assume env.data.qpos[2] corresponds to the body height.
     return env.data.qpos[2] < 0.2
 
-# Add this condition to the environment.
 env.termination_fns["fall"] = lambda: fall_termination(env)
 ```
 
 ### Video Saving Option
 
-The `QuadrupedEnv` class supports saving a video of the simulation. This can be useful for visualizing the agent's behavior during training or evaluation.
-
-**Parameters:**
-- `save_video` (bool): Whether to save a video of the simulation. Default is `False`.
-- `video_path` (str): Path to save the video file. Default is `"simulation.mp4"`.
-
-**Example Usage:**
-
-To enable video saving, set the `save_video` parameter to `True` and specify the `video_path` if needed:
+Enable video recording by setting `save_video` to `True` and providing a `video_path` if needed:
 
 ```python
 env = QuadrupedEnv(render_mode="human", render_fps=30, save_video=True, video_path="output/simulation.mp4")
 ```
 
-This will save the video to the specified path. The video will be recorded at the specified `render_fps`.
+Make sure the `cv2` library is installed and properly configured.
 
-**Note:** Ensure that the `cv2` library is installed and properly configured to use the video saving feature.
+## Example: Complete Simulation Loop
 
-### Complete Example
-
-Below is a full example that demonstrates how to instantiate the environment, assign custom reward and termination functions, and run a simulation loop:
+Below is a full example demonstrating instantiation, custom reward and termination functions, and a simulation loop:
 
 ```python
 import numpy as np
-from custom_quadruped_env import QuadrupedEnv  # assuming the class is saved in this module
+from custom_quadruped_env import QuadrupedEnv  # assuming the class is in this module
 
-# Define common reward functions.
+# Define reward functions.
 def forward_reward(env):
-    # Reward based on forward velocity (assumes qvel[0] is forward velocity).
     return env.data.qvel[0]
 
 def control_cost(env):
-    # Penalize large control inputs.
     return -0.1 * np.sum(np.square(env.data.ctrl))
 
 def alive_bonus(env):
-    # Constant bonus for remaining "alive".
     return 1.0
 
 # Define a termination function.
 def fall_termination(env):
-    # Terminate if the quadruped's body height (qpos[2]) is too low.
     return env.data.qpos[2] < 0.2
 
 # Instantiate the environment.
 env = QuadrupedEnv(render_mode="human", render_fps=60)
 
-# Set up reward functions.
+# Set reward and termination functions.
 env.reward_fns = {
     "forward": lambda: forward_reward(env),
     "control_cost": lambda: control_cost(env),
     "alive_bonus": lambda: alive_bonus(env)
 }
-
-# Add a termination condition.
 env.termination_fns["fall"] = lambda: fall_termination(env)
 
-# Reset the environment.
+# Run the simulation loop.
 obs, _ = env.reset()
 done = False
 total_reward = 0.0
 
 while not done:
-    # Sample a random action (replace with your policy).
-    action = env.action_space.sample()
+    action = env.action_space.sample()  # Replace with your policy
     obs, reward, terminated, truncated, info = env.step(action)
     total_reward += reward
-    env.render()  # Rendering runs at the specified FPS (if render_mode is not None)
+    env.render()  # Render if not disabled
     done = terminated or truncated
 
 print("Episode finished with reward:", total_reward)
 env.close()
 ```
 
-## Class Overview
+## Class Details
 
 ### QuadrupedEnv
 
-**Attributes:**
-- **Simulation Settings:**
-  - `model`: The MuJoCo model loaded from an XML file.
-  - `data`: The simulation data object.
-  - `max_time`: Maximum episode duration (seconds).
-  - `frame_skip`: Number of simulation steps per call to `step()`.
-  
-- **Rendering Settings:**
-  - `render_mode`: `"human"`, `"rgb_array"`, or `None`.  
-    - *Human mode* uses OpenCV to display the simulation.
-    - *RGB array mode* returns an image as a NumPy array.
-    - `None` disables rendering for optimal training performance.
-  - `width` and `height`: Dimensions for rendering.
-  - `render_fps`: The target FPS for display updates.
-  - `save_video`: Whether to save a video of the simulation. Default is `False`.
-  - `video_path`: Path to save the video file. Default is `"simulation.mp4"`.
-  
-- **Modular Functions:**
-  - `reward_fns`: A dictionary mapping names (strings) to reward callables. Each callable takes no arguments and returns a numeric reward value.
-  - `termination_fns`: A dictionary mapping names to callables that return a Boolean indicating whether the episode should terminate.
-  - `use_default_termination`: Whether to use the default termination function. Default is `True`.
+**Key Attributes:**
+- **Simulation:** `model`, `data`, `max_time`, `frame_skip`.
+- **Rendering:** `render_mode`, `width`, `height`, `render_fps`, `save_video`, `video_path`.
+- **Modular Functions:** `reward_fns`, `termination_fns`, `use_default_termination`.
 
-**Methods:**
-- `__init__(self, model_path, max_time, frame_skip, render_mode, width, height, render_fps, reward_fns, termination_fns, save_video, video_path, use_default_termination)`: Initializes the environment with the specified parameters.
-- `seed(self, seed=None)`: Sets the random seed for the environment.
-- `reset(self, seed=None, options=None)`: Resets the simulation to an initial state and returns the initial observation.
-- `_get_obs(self)`: Obtains the observation from the simulation.
-- `_default_reward(self)`: Default reward function that returns 0.
-- `_default_termination(self)`: Default termination function that ends the episode if the simulation time exceeds `max_time`.
-- `step(self, action)`: Applies the given action, advances the simulation, and returns the observation, total reward, termination status, truncation status, and additional info.
-- `render_vector(self, origin, vector, color, scale, radius, offset)`: Renders an arrow from the origin along the vector.
-- `render_custom_geoms(self)`: Handler for rendering custom geometry. By default, does nothing.
-- `render(self)`: Renders the simulation based on the specified render mode.
-- `close(self)`: Cleans up resources such as the renderer, video writer, and OpenCV windows.
+**Important Methods:**
+- `__init__`: Initializes the environment with the specified parameters.
+- `seed`: Sets the random seed.
+- `reset`: Resets the simulation to an initial state.
+- `_get_obs`: Retrieves the current observation.
+- `_default_reward`: Returns a default reward (often 0).
+- `_default_termination`: Terminates the episode based on `max_time`.
+- `step`: Advances the simulation and returns observation, reward, termination status, and info.
+- `render`: Displays the simulation based on the current render mode.
+- `close`: Cleans up resources (e.g., OpenCV windows, video writer).
 
 ### ControlInputs
 
+Manages control variables for the simulation.
+
 **Attributes:**
-- `velocity`: A 3D vector representing the velocity.
-- `heading`: A 3D vector representing the heading.
+- `velocity`: A 3D vector for velocity.
+- `heading`: A 3D vector for heading.
 
 **Methods:**
-- `__init__(self)`: Initializes the control inputs with zero vectors for velocity and heading.
-- `set_velocity_xy(self, x, y)`: Sets the velocity in the XY plane.
-- `set_velocity_speed_alpha(self, speed, alpha)`: Sets the velocity based on speed and angle.
-- `set_orientation(self, theta)`: Sets the orientation based on the angle.
-- `sample(self, max_speed)`: Randomly samples velocity and orientation.
+- `__init__`: Initializes velocity and heading to zero.
+- `set_velocity_xy`: Sets the velocity in the XY plane.
+- `set_velocity_speed_alpha`: Sets velocity based on speed and angle.
+- `set_orientation`: Sets the heading using an angle.
+- `sample`: Randomly samples velocity and orientation within limits.
 
 ### WalkingQuadrupedEnv
 
-**Attributes:**
-- Inherits all attributes from `QuadrupedEnv`.
-- Additional sensor indices for body accelerometer, gyroscope, position, linear velocity, and x-axis.
+Extends QuadrupedEnv with additional sensor inputs and rewards tailored for walking.
 
-**Methods:**
-- `__init__(self, **kwargs)`: Initializes the environment with additional sensor indices.
-- `control_cost(self)`: Penalizes high control inputs.
-- `alive_bonus(self)`: Provides a constant bonus for staying "alive".
-- `progress_reward(self)`: Rewards moving in the right direction based on velocity.
-- `orientation_reward(self)`: Rewards facing the right direction based on heading.
-- `_default_reward(self)`: Combines various reward components.
-- `render_custom_geoms(self)`: Renders the control inputs as vectors in the simulation.
+**Additional Attributes:**
+- Sensor indices for body accelerometer, gyroscope, position, linear velocity, and x-axis.
+
+**Additional Methods:**
+- `control_cost`: Penalizes high control inputs.
+- `alive_bonus`: Provides a constant bonus for staying “alive.”
+- `progress_reward`: Rewards forward movement.
+- `orientation_reward`: Rewards correct facing direction.
+- `_default_reward`: Combines multiple reward components.
+- `render_custom_geoms`: Renders vectors representing control inputs in the simulation.
+
 
 ## Quadruped Robot Model
 
@@ -366,7 +349,6 @@ env.close()
 | 28    | FRAME      | body_zaxis[y]  |
 | 29    | FRAME      | body_zaxis[z]  |
 
----
 
 # Summary
 
