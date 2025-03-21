@@ -1,15 +1,10 @@
 # QuadrupedEnv Documentation
 
-The **QuadrupedEnv** class is a custom Gymnasium environment that wraps a MuJoCo simulation of a quadruped. It is designed to be modular so you can easily customize reward components and termination conditions. In addition, the simulation’s physics runs at its natural (time-step) speed while rendering is throttled to a specified frame rate (FPS). When rendering is disabled (by setting `render_mode=None`), the environment incurs no rendering overhead—ideal for fast training.
-
-## Overview
-
 The Quadruped simulation environment is built on the MuJoCo physics engine and is designed for both training and visualization. Its modular design allows you to customize reward components, termination conditions, and rendering settings. The main classes covered include:
 
 - **QuadrupedEnv:** The base environment class.
-- **ControlInputs:** A helper class to manage velocity and heading inputs.
+- **VelocityHeadingControls:** A helper class to manage velocity and heading inputs.
 - **WalkingQuadrupedEnv:** An extension of QuadrupedEnv that includes additional sensors and reward components for walking behaviors.
-
 
 ## Environment Configuration
 
@@ -30,13 +25,13 @@ The Quadruped simulation environment is built on the MuJoCo physics engine and i
 - **video_path:** File path to save the video (default: `"simulation.mp4"`).
 
 ### Modular Functions
-- **Reward Functions (`reward_fns`):**  
+- **Reward Functions (`reward_fns`):**
   A dictionary mapping names to reward callables (each takes no arguments and returns a numeric value). These functions are summed at each simulation step.
-  
-- **Termination Functions (`termination_fns`):**  
+
+- **Termination Functions (`termination_fns`):**
   A dictionary mapping names to callables that return a Boolean indicating whether the episode should terminate. The episode ends if any condition is met.
 
-- **use_default_termination:**  
+- **use_default_termination:**
   A flag to enable the built-in termination based on simulation time.
 
 ## Using the Environment
@@ -59,7 +54,7 @@ env = QuadrupedEnv(render_mode=None)
 
 Reward functions can be set up in two ways:
 
-1. **Assigning Callables After Instantiation:**  
+1. **Assigning Callables After Instantiation:**
    Define functions that access `env.data` and then add them to the `reward_fns` dictionary:
 
    ```python
@@ -80,7 +75,7 @@ Reward functions can be set up in two ways:
    }
    ```
 
-2. **Subclassing QuadrupedEnv:**  
+2. **Subclassing QuadrupedEnv:**
    Define reward functions as instance methods for better organization:
 
    ```python
@@ -124,7 +119,6 @@ Reward functions can be set up in two ways:
    }
    ```
 
-
 ### Modular Termination Conditions
 
 Termination conditions work similarly to rewards. Each callable in the `termination_fns` dictionary should return a Boolean value. For instance:
@@ -146,13 +140,67 @@ env = QuadrupedEnv(render_mode="human", render_fps=30, save_video=True, video_pa
 
 Make sure the `cv2` library is installed and properly configured.
 
+## Custom Geometry Rendering
+
+The `render_custom_geoms` method in the `QuadrupedEnv` class allows you to add custom helper geometry to the scene. This can be useful for visualizing control inputs, forces, or other vectors during the simulation.
+
+### Method Overview
+
+```python
+def render_custom_geoms(self):
+    """
+    Handler for rendering custom geometry.
+    By default, do nothing.
+    Derived classes can override this to add their own geoms.
+    """
+    pass
+```
+
+### Example Usage
+
+To use `render_custom_geoms`, you need to override it in a subclass and add your custom rendering logic. For example, in the `WalkingQuadrupedEnv` class, this method is used to render control input vectors:
+
+```python
+class WalkingQuadrupedEnv(QuadrupedEnv):
+
+    def render_custom_geoms(self):
+        # Render the control inputs as vectors.
+        origin = self._get_vec3_sensor(self._body_pos_idx)
+
+        # Render the velocity vector in red
+        self.render_vector(origin, self.control_inputs.velocity, [1, 0, 0, 1], offset=0.05)
+        # Render the heading vector in green
+        self.render_vector(origin, self.control_inputs.heading, [0, 1, 0, 1], offset=0.05)
+```
+
+### Adding Custom Geometry
+
+1. **Override `render_custom_geoms`**: Create a subclass of `QuadrupedEnv` and override the `render_custom_geoms` method.
+2. **Use `render_vector`**: Call the `render_vector` method to add arrows or other shapes to the scene.
+
+### Example
+
+Here is a complete example of how to add custom geometry to the scene:
+
+```python
+class CustomQuadrupedEnv(QuadrupedEnv):
+
+    def render_custom_geoms(self):
+        # Example: Render a custom vector
+        origin = self._get_vec3_sensor(self._body_pos_idx)
+        custom_vector = np.array([1, 0, 0])  # Example vector
+        self.render_vector(origin, custom_vector, [0, 0, 1, 1], offset=0.1)  # Blue vector
+```
+
+In this example, a blue vector is rendered at the position of the quadruped's body. You can customize the vector's direction, color, and offset as needed.
+
 ## Example: Complete Simulation Loop
 
 Below is a full example demonstrating instantiation, custom reward and termination functions, and a simulation loop:
 
 ```python
 import numpy as np
-from custom_quadruped_env import QuadrupedEnv  # assuming the class is in this module
+from quadruped_env import QuadrupedEnv
 
 # Define reward functions.
 def forward_reward(env):
@@ -215,7 +263,7 @@ env.close()
 - `render`: Displays the simulation based on the current render mode.
 - `close`: Cleans up resources (e.g., OpenCV windows, video writer).
 
-### ControlInputs
+### VelocityHeadingControls
 
 Manages control variables for the simulation.
 
@@ -244,7 +292,6 @@ Extends QuadrupedEnv with additional sensor inputs and rewards tailored for walk
 - `orientation_reward`: Rewards correct facing direction.
 - `_default_reward`: Combines multiple reward components.
 - `render_custom_geoms`: Renders vectors representing control inputs in the simulation.
-
 
 ## Quadruped Robot Model
 
@@ -348,18 +395,3 @@ Extends QuadrupedEnv with additional sensor inputs and rewards tailored for walk
 | 27    | FRAME      | body_zaxis[x]  |
 | 28    | FRAME      | body_zaxis[y]  |
 | 29    | FRAME      | body_zaxis[z]  |
-
-
-# Summary
-
-- **Instantiation:**  
-  Create an environment instance with parameters such as `render_mode`, `render_fps`, and `frame_skip`.
-
-- **Reward Functions:**  
-  Define reward functions as callables that reference the environment’s internal state. They are stored in the `reward_fns` dictionary, and the total reward is the sum of all individual components.
-
-- **Termination Conditions:**  
-  Define termination functions similarly using the `termination_fns` dictionary. An episode ends when any termination condition returns `True`.
-
-- **Combining Rewards:**  
-  Multiple reward components can be combined by simply summing their outputs. You can adjust coefficients and add as many components as needed.

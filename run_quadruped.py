@@ -1,5 +1,5 @@
 import numpy as np
-from envs.quadruped import WalkingQuadrupedEnv
+from envs.walking_quadruped import WalkingQuadrupedEnv
 
 # More legible printing from numpy.
 np.set_printoptions(precision=3, suppress=True, linewidth=100)
