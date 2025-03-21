@@ -78,9 +78,13 @@ Reward functions should be defined as callables that access the environment’s 
        "alive_bonus": lambda: alive_bonus(env)
    }
    ```
+   
+**How Rewards Are Combined:**  
+At each call to `step()`, the environment iterates over `reward_fns` and sums the returned values. This modular design makes it easy to add, remove, or adjust reward components without modifying the core simulation loop.
+
 
 2. **Subclassing QuadrupedEnv to Include Reward Methods:**  
-   You can subclass the environment and define reward functions as instance methods. Then, pass them (via lambdas) when setting up the environment:
+   You can subclass the environment and define reward functions as instance methods. This approach is useful when you have many reward components and want to keep the code organized:
 
    ```python
    class CustomQuadrupedEnv(QuadrupedEnv):
@@ -92,18 +96,13 @@ Reward functions should be defined as callables that access the environment’s 
 
        def alive_bonus(self):
            return 1.0
+   
+       def _default_reward(self):
+           return self.forward_reward() + self.control_cost() + self.alive_bonus()
 
    # Instantiate and assign rewards using bound methods.
    env = CustomQuadrupedEnv(render_mode="human", render_fps=60)
-   env.reward_fns = {
-       "forward": lambda: env.forward_reward(),
-       "control_cost": lambda: env.control_cost(),
-       "alive_bonus": lambda: env.alive_bonus()
-   }
    ```
-
-**How Rewards Are Combined:**  
-At each call to `step()`, the environment iterates over `reward_fns` and sums the returned values. This modular design makes it easy to add, remove, or adjust reward components without modifying the core simulation loop.
 
 ### Modular Termination Conditions
 
@@ -196,6 +195,73 @@ while not done:
 print("Episode finished with reward:", total_reward)
 env.close()
 ```
+
+## Class Overview
+
+### QuadrupedEnv
+
+**Attributes:**
+- **Simulation Settings:**
+  - `model`: The MuJoCo model loaded from an XML file.
+  - `data`: The simulation data object.
+  - `max_time`: Maximum episode duration (seconds).
+  - `frame_skip`: Number of simulation steps per call to `step()`.
+  
+- **Rendering Settings:**
+  - `render_mode`: `"human"`, `"rgb_array"`, or `None`.  
+    - *Human mode* uses OpenCV to display the simulation.
+    - *RGB array mode* returns an image as a NumPy array.
+    - `None` disables rendering for optimal training performance.
+  - `width` and `height`: Dimensions for rendering.
+  - `render_fps`: The target FPS for display updates.
+  - `save_video`: Whether to save a video of the simulation. Default is `False`.
+  - `video_path`: Path to save the video file. Default is `"simulation.mp4"`.
+  
+- **Modular Functions:**
+  - `reward_fns`: A dictionary mapping names (strings) to reward callables. Each callable takes no arguments and returns a numeric reward value.
+  - `termination_fns`: A dictionary mapping names to callables that return a Boolean indicating whether the episode should terminate.
+  - `use_default_termination`: Whether to use the default termination function. Default is `True`.
+
+**Methods:**
+- `__init__(self, model_path, max_time, frame_skip, render_mode, width, height, render_fps, reward_fns, termination_fns, save_video, video_path, use_default_termination)`: Initializes the environment with the specified parameters.
+- `seed(self, seed=None)`: Sets the random seed for the environment.
+- `reset(self, seed=None, options=None)`: Resets the simulation to an initial state and returns the initial observation.
+- `_get_obs(self)`: Obtains the observation from the simulation.
+- `_default_reward(self)`: Default reward function that returns 0.
+- `_default_termination(self)`: Default termination function that ends the episode if the simulation time exceeds `max_time`.
+- `step(self, action)`: Applies the given action, advances the simulation, and returns the observation, total reward, termination status, truncation status, and additional info.
+- `render_vector(self, origin, vector, color, scale, radius, offset)`: Renders an arrow from the origin along the vector.
+- `render_custom_geoms(self)`: Handler for rendering custom geometry. By default, does nothing.
+- `render(self)`: Renders the simulation based on the specified render mode.
+- `close(self)`: Cleans up resources such as the renderer, video writer, and OpenCV windows.
+
+### ControlInputs
+
+**Attributes:**
+- `velocity`: A 3D vector representing the velocity.
+- `heading`: A 3D vector representing the heading.
+
+**Methods:**
+- `__init__(self)`: Initializes the control inputs with zero vectors for velocity and heading.
+- `set_velocity_xy(self, x, y)`: Sets the velocity in the XY plane.
+- `set_velocity_speed_alpha(self, speed, alpha)`: Sets the velocity based on speed and angle.
+- `set_orientation(self, theta)`: Sets the orientation based on the angle.
+- `sample(self, max_speed)`: Randomly samples velocity and orientation.
+
+### WalkingQuadrupedEnv
+
+**Attributes:**
+- Inherits all attributes from `QuadrupedEnv`.
+- Additional sensor indices for body accelerometer, gyroscope, position, linear velocity, and x-axis.
+
+**Methods:**
+- `__init__(self, **kwargs)`: Initializes the environment with additional sensor indices.
+- `control_cost(self)`: Penalizes high control inputs.
+- `alive_bonus(self)`: Provides a constant bonus for staying "alive".
+- `progress_reward(self)`: Rewards moving in the right direction based on velocity.
+- `orientation_reward(self)`: Rewards facing the right direction based on heading.
+- `_default_reward(self)`: Combines various reward components.
+- `render_custom_geoms(self)`: Renders the control inputs as vectors in the simulation.
 
 ## Quadruped Robot Model
 
