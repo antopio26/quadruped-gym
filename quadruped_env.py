@@ -5,6 +5,7 @@ import mujoco
 import gymnasium as gym
 from gymnasium import spaces
 import cv2
+from mujoco import mj_name2id, mjtObj
 
 
 class QuadrupedEnv(gym.Env):
@@ -175,6 +176,42 @@ class QuadrupedEnv(gym.Env):
         info = {"time": self.data.time, "reward_components": reward_info}
         return observation, total_reward, terminated, truncated, info
 
+    def render_vector(self, origin, vector, color, scale=0.2, radius=0.005, offset=0.0):
+        """
+        Renders an arrow from origin along 'vector'.
+        """
+        # Compute the endpoint.
+        origin = origin.copy() + np.array([0, 0, offset])
+        endpoint = origin + (vector * scale)
+
+        # Check that there is room in the scene.geoms array.
+        scn = self.renderer.scene
+        if scn.ngeom >= scn.maxgeom:
+            return
+
+        # Initialize a new geom at index 'ngeom'
+        idx = scn.ngeom
+
+        # Set up the arrow geometry.
+        arrow = mujoco.MjvGeom()
+        arrow.type = mujoco.mjtGeom.mjGEOM_ARROW1
+        arrow.rgba[:] = np.array(color, dtype=np.float32)
+
+        # Initialize with default values; then set up with connector:
+        mujoco.mjv_initGeom(scn.geoms[idx], arrow.type, np.zeros(3), np.zeros(3), np.zeros(9), arrow.rgba)
+        # Use the helper function to compute position, orientation and size from two endpoints.
+        # Here, radius determines the thickness of the arrow.
+        mujoco.mjv_connector(scn.geoms[idx], arrow.type, radius, origin, endpoint)
+        scn.ngeom += 1
+
+    def render_custom_geoms(self):
+        """
+        Handler for rendering custom geometry.
+        By default, do nothing.
+        Derived classes can override this to add their own geoms.
+        """
+        pass
+
     def render(self):
         """
         Render the simulation only when needed based on simulation time and the desired frame rate.
@@ -199,8 +236,14 @@ class QuadrupedEnv(gym.Env):
         if self.renderer is None:
             self.renderer = mujoco.Renderer(self.model, width=self.width, height=self.height)
 
-        # Update scene and generate frame.
+
+        # Update scene and clear any previous custom geoms
         self.renderer.update_scene(self.data, scene_option=self.scene_option)
+
+        # Call the handler for custom geometry; if not overridden, nothing happens
+        self.render_custom_geoms()
+
+        # Render the frame and convert to BGR format for OpenCV.
         pixels = self.renderer.render()
         pixels_bgr = cv2.cvtColor(pixels, cv2.COLOR_RGB2BGR)
 
@@ -235,32 +278,113 @@ class QuadrupedEnv(gym.Env):
             self.video_writer = None
         cv2.destroyAllWindows()
 
+class ControlInputs:
+    """
+    Class to manage high-level control inputs for a quadruped robot.
+    """
+
+    def __init__(self):
+        self.velocity = np.zeros(3)
+        self.heading = np.zeros(3)
+
+    def set_velocity_xy(self, x, y):
+        self.velocity[0] = x
+        self.velocity[1] = y
+
+    def set_velocity_speed_alpha(self, speed, alpha):
+        self.velocity[0] = speed * np.cos(alpha)
+        self.velocity[1] = speed * np.sin(alpha)
+
+    def set_orientation(self, theta):
+        self.heading[0] = np.cos(theta)
+        self.heading[1] = np.sin(theta)
+
+    def sample(self, max_speed=1.0):
+        # Randomly sample velocity and orientation.
+        self.set_velocity_speed_alpha(
+            speed=np.random.uniform(0, max_speed),
+            alpha=np.random.uniform(-np.pi, np.pi)
+        )
+
+        # Randomly sample orientation.
+        self.set_orientation(
+            theta=np.random.uniform(-np.pi, np.pi)
+        )
+
+        return self.velocity, self.heading
+
+class WalkingQuadrupedEnv(QuadrupedEnv):
+
+    def __init__(self, **kwargs):
+        super(WalkingQuadrupedEnv, self).__init__(**kwargs)
+
+        # Useful constants for custom reward functions.
+        self._body_accel_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_accel")]
+        self._body_gyro_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_gyro")]
+        self._body_pos_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_pos")]
+
+        self._body_linvel_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_linvel")]
+        self._body_xaxis_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_xaxis")]
+        self._body_xaxis_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_xaxis")]
+
+        self._get_vec3_sensor = lambda idx: self.data.sensordata[idx: idx+3]
+
+        self.control_inputs = ControlInputs()
+
+    def control_cost(self):
+        # Penalize high control inputs.
+        return -0.1 * np.sum(np.square(self.data.ctrl))
+
+    def alive_bonus(self):
+        # Constant bonus for staying "alive".
+        return 0.5 * self.frame_skip
+
+    def progress_reward(self):
+        # Reward for moving in the right direction. (Magnitude-weighted cosine similarity)
+        v1 = self._get_vec3_sensor(self._body_linvel_idx)
+        v2 = self.control_inputs.velocity
+
+        norm_v1 = np.linalg.norm(v1)
+        norm_v2 = np.linalg.norm(v2)
+
+        if norm_v1 < 1e-8 or norm_v2 < 1e-8:
+            return 0  # Avoid division by zero and numerical instability
+
+        return (np.dot(v1, v2) / (norm_v1 * norm_v2)) * (min(norm_v1, norm_v2) / max(norm_v1, norm_v2))
+
+    def orientation_reward(self):
+        # Reward for facing the right direction.
+        return np.dot(self._get_vec3_sensor(self._body_xaxis_idx), self.control_inputs.heading)
+
+    # Other rewards based on frame position, orientation, etc.
+    # (like not flipping or keeping the body upright) can be added.
+
+    def _default_reward(self):
+        return self.alive_bonus() + self.control_cost() + 2 * self.progress_reward() + 2 * self.orientation_reward()
+
+    def render_custom_geoms(self):
+        # Render the control inputs as vectors.
+        origin = self._get_vec3_sensor(self._body_pos_idx)
+
+        # Render the velocity vector in red
+        self.render_vector(origin, self.control_inputs.velocity, [1, 0, 0, 1], offset=0.05)
+        # Render the heading vector in green
+        self.render_vector(origin, self.control_inputs.heading, [0, 1, 0, 1], offset=0.05)
+
 # Example usage:
 if __name__ == "__main__":
-    # Example reward functions.
-    def forward_reward(env):
-        # Reward based on forward velocity (assumes qvel[0] is forward velocity).
-        return env.data.qvel[0]
-
-    def control_cost(env):
-        # Penalize high control inputs.
-        return -0.1 * np.sum(np.square(env.data.ctrl))
-
-    def alive_bonus(env):
-        # Constant bonus for staying "alive".
-        return 1.0 * env.frame_skip
-
+    # More legible printing from numpy.
+    np.set_printoptions(precision=3, suppress=True, linewidth=100)
 
     # Instantiate the environment.
-    env = QuadrupedEnv(render_mode="rgb_array", render_fps=30,
-                       save_video=True)
+    env = WalkingQuadrupedEnv(render_mode="human", render_fps=30, save_video=True)
 
-    # Assign reward functions.
-    env.reward_fns = {
-        "forward": lambda: forward_reward(env),
-        "control_cost": lambda: control_cost(env),
-        "alive_bonus": lambda: alive_bonus(env)
-    }
+    # Sample random control inputs.
+    ctrl_vel, ctrl_heading = env.control_inputs.sample()
+
+    print("Control inputs:")
+    print("Velocity:", ctrl_vel)
+    print("Heading:", ctrl_heading)
 
     obs, _ = env.reset()
     done = False
@@ -271,9 +395,6 @@ if __name__ == "__main__":
         obs, reward, terminated, truncated, info = env.step(action)
         total_reward += reward
         frame = env.render()  # Render returns a frame (for rgb_array) or displays it (for human).
-
-        if frame is not None:
-            print(obs)
 
         done = terminated or truncated
 
