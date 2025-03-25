@@ -22,26 +22,19 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
 
         self.control_inputs = VelocityHeadingControls()
 
-    def control_cost(self):
-        # Penalize high control inputs.
-        return -0.1 * np.sum(np.square(self.data.ctrl))
+        # Initialize previous control inputs
+        self.previous_ctrl = np.zeros_like(self.data.ctrl)
 
-    def alive_bonus(self):
-        # Constant bonus for staying "alive".
-        return 0.5 * self.frame_skip
 
-    def progress_reward(self):
-        # Reward for moving in the right direction. (Magnitude-weighted cosine similarity)
-        v1 = self._get_vec3_sensor(self._body_linvel_idx)
-        v2 = self.control_inputs.velocity
+    def progress_direction_reward(self):
+        # Reward for moving in the right direction.
+        return np.dot(self._get_vec3_sensor(self._body_linvel_idx), self.control_inputs.velocity)
 
-        norm_v1 = np.linalg.norm(v1)
-        norm_v2 = np.linalg.norm(v2)
+    def progress_speed_reward(self):
+        # Reward for moving with the right speed.
+        d = np.abs(np.abs(self._get_vec3_sensor(self._body_linvel_idx)) - np.abs(self.control_inputs.velocity))
 
-        if norm_v1 < 1e-8 or norm_v2 < 1e-8:
-            return 0  # Avoid division by zero and numerical instability
-
-        return (np.dot(v1, v2) / (norm_v1 * norm_v2)) * (min(norm_v1, norm_v2) / max(norm_v1, norm_v2))
+        return -0.1 * np.sum(np.square(d))
 
     def orientation_reward(self):
         # Reward for facing the right direction.
@@ -50,8 +43,27 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
     # Other rewards based on frame position, orientation, etc.
     # (like not flipping or keeping the body upright) can be added.
 
+    # DUMMY REWARD FUNCTION
+    def control_cost(self):
+        # Calculate the difference between current and previous control inputs
+        control_diff = self.data.ctrl - self.previous_ctrl
+        # Update previous control inputs
+        self.previous_ctrl = np.copy(self.data.ctrl)
+        # Penalize large differences
+        return -0.1 * np.sum(np.square(control_diff))
+
+    def alive_bonus(self):
+        # Constant bonus for staying "alive".
+        return 0.1
+
+    def
+
     def _default_reward(self):
-        return self.alive_bonus() + self.control_cost() + 2 * self.progress_reward() + 2 * self.orientation_reward()
+
+
+        return (self.alive_bonus()
+                + self.control_cost()
+                )
 
     def render_custom_geoms(self):
         # Render the control inputs as vectors.

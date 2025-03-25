@@ -83,7 +83,7 @@ class QuadrupedEnv(gym.Env):
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.model.nu,), dtype=np.float32)
 
         # Define observation space using sensor data.
-        obs_size = self.model.nsensor
+        obs_size = self.model.nsensordata
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_size,), dtype=np.float32)
 
         # Set up modular reward and termination functions.
