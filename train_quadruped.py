@@ -1,17 +1,23 @@
+import os
 import numpy as np
-import matplotlib.pyplot as plt
-from envs.walking_quadruped import WalkingQuadrupedEnv
-
-from stable_baselines3 import PPO, A2C
+import pandas as pd
+from envs.po_walking_quad import WalkingQuadrupedEnv
+from stable_baselines3 import PPO, SAC, A2C, TD3
 from stable_baselines3.common.callbacks import BaseCallback
+from utils.plot import plot_data
+import matplotlib.pyplot as plt
 
 # More legible printing from numpy.
 np.set_printoptions(precision=3, suppress=True, linewidth=100)
 
 # Instantiate the environment.
-env = WalkingQuadrupedEnv(render_mode="human", render_fps=30, save_video=True)
+env = WalkingQuadrupedEnv(render_mode="human", render_fps=30, save_video=True, frame_window=3, random_controls=True)
 
-model = A2C("MlpPolicy", env, verbose=1)
+# env.control_inputs.set_velocity_speed_alpha(speed=1, alpha=0)
+# env.control_inputs.set_orientation(theta=0)
+
+# Define the model
+model = SAC("MlpPolicy", env)
 
 # Callback to record rewards
 class RewardCallback(BaseCallback):
@@ -25,34 +31,44 @@ class RewardCallback(BaseCallback):
 
 reward_callback = RewardCallback()
 
-# Train the model
-model.learn(total_timesteps=100_000, callback=reward_callback)
+filepath = "./policies/sac_quadruped.zip"
 
-# Plot the rewards over training steps
-plt.plot(reward_callback.rewards)
-plt.xlabel('Training Steps')
-plt.ylabel('Reward')
-plt.title('Reward Over Training Steps')
-plt.show()
+# If the model file exists, load it
+if filepath and os.path.isfile(filepath):
+    model = model.load(filepath, env=env)
+    print("Previous model loaded.")
 
-# Evaluate the model
-vec_env = model.get_env()
-obs = vec_env.reset()
+for i in range(10):
 
-done = False
-rewards = []
+    # Train the model
+    model.learn(total_timesteps=10_000, progress_bar=True, callback=reward_callback)
 
-while not done:
-    action, _state = model.predict(obs, deterministic=True)
-    obs, reward, done, truncated, info = env.step(action)
-    rewards.append(reward)
-    env.render()
+    # Save the model
+    model.save(filepath)
+
+    # Prepare data for plotting
+    data = pd.DataFrame({
+        'Training Steps': range(len(reward_callback.rewards)),
+        'Reward': [reward[0] for reward in reward_callback.rewards],  # Extract the reward value
+        'Condition1': ['Training'] * len(reward_callback.rewards)
+    })
+
+    # Plot the rewards over training steps using plot_data
+    plot_data([data], xaxis='Training Steps', value='Reward', condition='Condition1', bin_size=200)
+    plt.show()
+
+    # Evaluate the model
+    obs, _ = env.reset()
+
+    # Update video path
+    new_video_path = f'./videos/runs/sac_quadruped_{i}.mp4'
+    env.update_video_path(new_video_path)
+
+    done = False
+
+    while not done:
+        action, _state = model.predict(obs, deterministic=True)
+        obs, reward, done, _, info = env.step(action)
+        env.render()
 
 env.close()
-
-# Plot the rewards over time
-plt.plot(rewards)
-plt.xlabel('Time Steps')
-plt.ylabel('Reward')
-plt.title('Reward Over Time')
-plt.show()

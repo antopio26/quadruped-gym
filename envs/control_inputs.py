@@ -5,6 +5,8 @@ class VelocityHeadingControls:
     Class to manage high-level control inputs for a quadruped robot.
     """
 
+    ####### Also height could be controlled #######
+
     def __init__(self):
         self.velocity = np.zeros(3)
         self.heading = np.zeros(3)

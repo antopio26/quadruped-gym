@@ -73,6 +73,12 @@ class QuadrupedEnv(gym.Env):
         # Update metadata with the render fps.
         self.metadata["render_fps"] = self.render_fps
 
+        # Set up camera for rendering.
+        self.camera = mujoco.MjvCamera()
+        self.camera.distance = 1.0  # Distance from the robot
+        self.camera.elevation = -30  # Camera elevation angle
+        self.camera.azimuth = 120  # Camera azimuth angle
+
         # Set up scene options.
         self.scene_option = mujoco.MjvOption()
         self.scene_option.flags[mujoco.mjtVisFlag.mjVIS_JOINT] = False
@@ -99,7 +105,7 @@ class QuadrupedEnv(gym.Env):
 
         # Seed and initial simulation reset.
         self.seed()
-        self.reset()
+        # self.reset()
 
     def seed(self, seed=None):
         np.random.seed(seed)
@@ -130,6 +136,15 @@ class QuadrupedEnv(gym.Env):
 
         observation = self._get_obs()
         return observation, {}
+
+    def update_video_path(self, new_video_path):
+        self.video_path = new_video_path
+        if self.video_writer is not None:
+            self.video_writer.release()
+            self.video_writer = None
+        if self.save_video:
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            self.video_writer = cv2.VideoWriter(self.video_path, fourcc, self.render_fps, (self.width, self.height))
 
     def _get_obs(self):
         """Obtain observation from the simulation."""
@@ -210,6 +225,14 @@ class QuadrupedEnv(gym.Env):
         """
         pass
 
+    def update_camera(self):
+        """Update the camera to follow the robot."""
+        # Get the robot's position
+        robot_pos = self.data.qpos[:3]
+
+        # Set the camera position and orientation
+        self.camera.lookat[:] = robot_pos
+
     def render(self):
         """
         Render the simulation only when needed based on simulation time and the desired frame rate.
@@ -234,9 +257,11 @@ class QuadrupedEnv(gym.Env):
         if self.renderer is None:
             self.renderer = mujoco.Renderer(self.model, width=self.width, height=self.height)
 
+        # Update the camera to follow the robot
+        self.update_camera()
 
         # Update scene and clear any previous custom geoms
-        self.renderer.update_scene(self.data, scene_option=self.scene_option)
+        self.renderer.update_scene(self.data, scene_option=self.scene_option, camera=self.camera)
 
         # Call the handler for custom geometry; if not overridden, nothing happens
         self.render_custom_geoms()

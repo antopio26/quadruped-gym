@@ -4,3 +4,9 @@
 - [ ] Understand how to add control inputs into the environment observations in the right way
   - For example mask only (real) sensor readings and append control inputs to the observation
 - [ ] Find better reward for to penalize abrupt changes in control inputs
+
+- [ ] RANDOMIZE ENVIRONMENT - Starting pose, joints etc.
+
+- [x] Make camera follow the robot
+
+- [ ] ADD TERMINATION CONDITION - FOR FLIPPING

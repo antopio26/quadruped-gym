@@ -25,44 +25,32 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Initialize previous control inputs
         self.previous_ctrl = np.zeros_like(self.data.ctrl)
 
-
-    def progress_direction_reward(self):
-        # Reward for moving in the right direction.
-        return np.dot(self._get_vec3_sensor(self._body_linvel_idx), self.control_inputs.velocity)
-
-    def progress_speed_reward(self):
-        # Reward for moving with the right speed.
-        d = np.abs(np.abs(self._get_vec3_sensor(self._body_linvel_idx)) - np.abs(self.control_inputs.velocity))
-
-        return -0.1 * np.sum(np.square(d))
-
-    def orientation_reward(self):
-        # Reward for facing the right direction.
-        return np.dot(self._get_vec3_sensor(self._body_xaxis_idx), self.control_inputs.heading)
-
-    # Other rewards based on frame position, orientation, etc.
-    # (like not flipping or keeping the body upright) can be added.
-
-    # DUMMY REWARD FUNCTION
     def control_cost(self):
         # Calculate the difference between current and previous control inputs
         control_diff = self.data.ctrl - self.previous_ctrl
         # Update previous control inputs
         self.previous_ctrl = np.copy(self.data.ctrl)
         # Penalize large differences
-        return -0.1 * np.sum(np.square(control_diff))
+        return np.sum(np.square(control_diff))
 
     def alive_bonus(self):
         # Constant bonus for staying "alive".
-        return 0.1
+        return 1
 
-    def
+    # DUMMY REWARD FUNCTIONS
+    def forward_reward(self):
+        # Reward for moving in the right direction.
+        return self._get_vec3_sensor(self._body_linvel_idx)[0] * self._get_vec3_sensor(self._body_linvel_idx)[0]
+
+    def no_drift_reward(self):
+        # Penalize movement on y axis
+        return np.abs(self._get_vec3_sensor(self._body_linvel_idx)[1])
 
     def _default_reward(self):
-
-
-        return (self.alive_bonus()
-                + self.control_cost()
+        return (+ 0.1 * self.alive_bonus()
+                - 0.1 * self.control_cost()
+                + 5.0 * self.forward_reward()
+                - 0.1 * self.no_drift_reward()
                 )
 
     def render_custom_geoms(self):
