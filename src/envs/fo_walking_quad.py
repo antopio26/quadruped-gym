@@ -13,7 +13,6 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         self._body_accel_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_accel")]
         self._body_gyro_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_gyro")]
         self._body_pos_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_pos")]
-
         self._body_linvel_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_linvel")]
         self._body_xaxis_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_xaxis")]
         self._body_xaxis_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_xaxis")]
@@ -40,17 +39,17 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
     # DUMMY REWARD FUNCTIONS
     def forward_reward(self):
         # Reward for moving in the right direction.
-        return self._get_vec3_sensor(self._body_linvel_idx)[0] * self._get_vec3_sensor(self._body_linvel_idx)[0]
+        return self._get_vec3_sensor(self._body_linvel_idx)[0] * self._get_vec3_sensor(self._body_pos_idx)[0]
 
     def no_drift_reward(self):
         # Penalize movement on y axis
-        return np.abs(self._get_vec3_sensor(self._body_linvel_idx)[1])
+        return np.abs(self._get_vec3_sensor(self._body_linvel_idx)[1] * self._get_vec3_sensor(self._body_pos_idx)[1])
 
     def _default_reward(self):
         return (+ 0.1 * self.alive_bonus()
-                - 0.1 * self.control_cost()
+                - 0.5 * self.control_cost()
                 + 5.0 * self.forward_reward()
-                - 0.1 * self.no_drift_reward()
+                - 3.0 * self.no_drift_reward()
                 )
 
     def render_custom_geoms(self):

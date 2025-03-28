@@ -4,6 +4,8 @@
 
 This project provides a custom Gymnasium environment for simulating a quadruped robot using MuJoCo. The environment supports various sensors, including accelerometers, gyroscopes, and position sensors, and allows for modular reward functions and termination conditions.
 
+> **DISCLAMER:** At the moment the documentation is not updated.
+
 ## 3D Printable Model
 
 The robot model used in this simulation mirrors the following 3D printable robot: [MG 996R Quadruped Robot](https://makerworld.com/en/models/904181-mg-996r-quadruped-robot).

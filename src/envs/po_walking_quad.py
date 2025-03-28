@@ -23,6 +23,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         self._body_pos_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_pos")]
         self._body_linvel_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_linvel")]
         self._body_xaxis_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_xaxis")]
+        self._body_zaxis_idx = self.model.sensor_adr[mj_name2id(self.model, mjtObj.mjOBJ_SENSOR, "body_zaxis")]
 
         self._get_vec3_sensor = lambda idx: self.data.sensordata[idx: idx + 3]
 
@@ -33,6 +34,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
 
         # Redefine observation space to include control inputs and mask some original observations
         obs_size = 6  # Example: only using body_accel and body_gyro (3 each)
+        obs_size += 2 # Only x and y components of body_linvel (optical flow)
         obs_size += self.model.nu  # Add control inputs
         obs_size += 6  # Add velocity and heading vectors (3 each)
         obs_size *= self.frame_window  # Account for stacking
@@ -44,6 +46,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         obs = np.concatenate([
             self._get_vec3_sensor(self._body_accel_idx),
             self._get_vec3_sensor(self._body_gyro_idx),
+            self._get_vec3_sensor(self._body_linvel_idx)[0:2],  # Only x and y components (optical flow)
             self.data.ctrl,
             self.control_inputs.velocity,
             self.control_inputs.heading
@@ -74,6 +77,13 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         stacked_obs = np.concatenate(self.observation_buffer)
         return stacked_obs, reward, terminated, truncated, info
 
+    def flip_termination(self):
+        # Terminate the episode if the body flips upside down.
+        return self._get_vec3_sensor(self._body_zaxis_idx)[2] < 0
+
+    def _default_termination(self):
+        return self.flip_termination() or super()._default_termination()
+
     def progress_direction_reward(self):
         # Reward for moving in the right direction.
         return np.dot(self._get_vec3_sensor(self._body_linvel_idx), self.control_inputs.velocity)
@@ -103,13 +113,32 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Constant bonus for staying "alive".
         return 1
 
-    def _default_reward(self):
+    def input_control_reward(self):
         return (+ 0.1 * self.alive_bonus()
                 - 0.5 * self.control_cost()
                 + 5.0 * self.progress_direction_reward()
                 - 5.0 * self.progress_speed_cost()
                 + 1.0 * self.orientation_reward()
                 )
+
+    ## DUMMY REWARD FUNCTIONS ##
+    def forward_reward(self):
+        # Reward for moving in the right direction.
+        return self._get_vec3_sensor(self._body_linvel_idx)[0] * self._get_vec3_sensor(self._body_pos_idx)[0]
+
+    def drift_cost(self):
+        # Penalize movement on y axis
+        return np.abs(self._get_vec3_sensor(self._body_linvel_idx)[1])
+
+    def only_forward_reward(self):
+        return (+ 0.1 * self.alive_bonus()
+                - 2.0 * self.control_cost()
+                + 5.0 * self.forward_reward()
+                - 1.0 * self.drift_cost()
+                )
+
+    def _default_reward(self):
+        return self.only_forward_reward()
 
     def render_custom_geoms(self):
         # Render the control inputs as vectors.
