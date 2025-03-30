@@ -66,6 +66,9 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         self.observation_buffer = [observation] * self.frame_window
         stacked_obs = np.concatenate(self.observation_buffer)
 
+        # Reset the ideal position
+        self.ideal_position = np.array([0.0, 0.0, 0.0], dtype=np.float64)  # TODO: Generalize
+
         if self.random_controls:
             self.control_inputs.sample(min_speed=self.min_speed, max_speed=self.max_speed)
 
@@ -179,7 +182,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
                 + 5.0 * exp_dist(self.orientation_reward())
                 - 1.0 * exp_dist(self.body_height_cost())
                 - 0.5 * self.joint_posture_cost()
-                - 10.0 * self.ideal_position_cost()
+                - 1.0 * self.ideal_position_cost()
                 )
 
     ## DUMMY REWARD FUNCTIONS ##
