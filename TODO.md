@@ -11,4 +11,7 @@
 
 - [x] ADD TERMINATION CONDITION - FOR FLIPPING
 - [ ] Fix bug with saving video when in rgb_array mode
-- [ ] Check Velocity and Position reference frames
+- [x] Check Velocity and Position reference frames
+
+- [x] !!! Reward based on position offset from an ideal trajectory !!!
+- [ ] ACCOUT FOR HEADING VECTOR AS VELOCITY IS IN THE LOCAL FRAME

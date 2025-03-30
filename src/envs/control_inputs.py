@@ -23,10 +23,10 @@ class VelocityHeadingControls:
         self.heading[0] = np.cos(theta)
         self.heading[1] = np.sin(theta)
 
-    def sample(self, max_speed=1.0):
+    def sample(self, min_speed=0.5, max_speed=1.0):
         # Randomly sample velocity and orientation.
         self.set_velocity_speed_alpha(
-            speed=np.random.uniform(0, max_speed),
+            speed=np.random.uniform(min_speed, max_speed),
             alpha=np.random.uniform(-np.pi, np.pi)
         )
 

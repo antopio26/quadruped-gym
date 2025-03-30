@@ -395,3 +395,8 @@ Extends QuadrupedEnv with additional sensor inputs and rewards tailored for walk
 | 27    | FRAME      | body_zaxis[x]  |
 | 28    | FRAME      | body_zaxis[y]  |
 | 29    | FRAME      | body_zaxis[z]  |
+| 30    | FRAME      | body_vel[x]    |
+| 31    | FRAME      | body_vel[y]    |
+| 32    | FRAME      | body_vel[z]    |
+
+>> **NOTE**: body_linvel is the velocity vector of the FRAME in global coordinates while body_vel is the velocity of the frame in local coordinates (it acts as optial flow sensor)

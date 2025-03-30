@@ -8,20 +8,17 @@ from envs.po_walking_quad import WalkingQuadrupedEnv
 from utils.plot import plot_data_line
 import matplotlib.pyplot as plt
 
-# More legible printing from numpy.
-np.set_printoptions(precision=3, suppress=True, linewidth=100)
-
 # Function to create a new environment instance
 def make_env():
     env = WalkingQuadrupedEnv(render_mode="rgb_array", render_fps=30, save_video=False, frame_window=5)
 
     env.control_inputs.set_orientation(np.pi / 2)
-    env.control_inputs.set_velocity_speed_alpha(1.0, np.pi / 2)
+    env.control_inputs.set_velocity_speed_alpha(0.2, np.pi / 2)
 
     return env
 
 if __name__ == '__main__':
-    output_folder = '../policies/po_ppo_pt2'
+    output_folder = '../policies/po_ppo_local_ideal_v0'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -29,7 +26,7 @@ if __name__ == '__main__':
     os.makedirs(os.path.join(output_folder, 'videos'), exist_ok=True)
     os.makedirs(os.path.join(output_folder, 'plots'), exist_ok=True)
 
-    # Create a vectorized environment with 4 parallel environments
+    # Create a vectorized environment with 10 parallel environments
     num_envs = 10
     env = SubprocVecEnv([make_env for _ in range(num_envs)])
 
@@ -56,7 +53,7 @@ if __name__ == '__main__':
         model = model.load(filepath, env=env)
         print("Previous model loaded.")
 
-    for i in range(20):
+    for i in range(8):
         # Train the model
         model.learn(total_timesteps=500_000, progress_bar=True, callback=reward_callback)
 
@@ -75,21 +72,20 @@ if __name__ == '__main__':
         data.to_csv(os.path.join(output_folder, f'logs/rewards_{i}.csv'), index=False)
 
         # Plot the rewards over training steps using plot_data
-        plot_data_line([data], xaxis='Training Steps', value='Reward', condition='Condition1', smooth=100)
+        plot_data_line([data], xaxis='Training Steps', value='Reward', condition='Condition1', smooth=len(reward_callback.rewards)//100)
         plt.savefig(os.path.join(output_folder, f'plots/reward_plot_{i}.png'))
         plt.close()
 
-        env = WalkingQuadrupedEnv(render_mode="human", render_fps=30, save_video=True, frame_window=5)
+        # Update video path
+        new_video_path = os.path.join(output_folder, f'videos/run_{i}.mp4')
+
+        env = WalkingQuadrupedEnv(render_mode="human", render_fps=30, save_video=True, frame_window=5, video_path=new_video_path)
 
         env.control_inputs.set_orientation(np.pi / 2)
-        env.control_inputs.set_velocity_speed_alpha(1.0, np.pi / 2)
+        env.control_inputs.set_velocity_speed_alpha(0.2, np.pi / 2)
 
         # Evaluate the model
         obs, _ = env.reset()
-
-        # Update video path
-        new_video_path = os.path.join(output_folder, f'videos/run_{i}.mp4')
-        env.update_video_path(new_video_path)
 
         done = False
 
@@ -98,4 +94,4 @@ if __name__ == '__main__':
             obs, reward, done, _, info = env.step(action)
             env.render()
 
-    env.close()
+        env.close()

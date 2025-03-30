@@ -211,5 +211,8 @@
         <framexaxis objtype="site" objname="FRAME" name="body_xaxis"/>
         <!-- Indices 27, 28, 29 -->
         <framezaxis objtype="site" objname="FRAME" name="body_zaxis"/>
+
+        <!-- Indices 30, 31, 32 -->
+        <velocimeter site="FRAME" name="body_vel"/>
     </sensor>
 </mujoco>

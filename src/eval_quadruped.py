@@ -3,11 +3,15 @@ from stable_baselines3 import PPO
 from envs.po_walking_quad import WalkingQuadrupedEnv
 import matplotlib.pyplot as plt
 
+
 def evaluate_model(model_path):
+    # More legible printing from numpy.
+    np.set_printoptions(precision=3, suppress=True, linewidth=100)
+
     env = WalkingQuadrupedEnv(render_mode="human", render_fps=30, save_video=False, frame_window=5)
 
     env.control_inputs.set_orientation(np.pi / 2)
-    env.control_inputs.set_velocity_speed_alpha(1.0, np.pi / 2)
+    env.control_inputs.set_velocity_speed_alpha(0.3, np.pi / 2)
 
     model = PPO.load(model_path, env=env)
 
@@ -19,6 +23,7 @@ def evaluate_model(model_path):
         action, _state = model.predict(obs, deterministic=True)
         obs, reward, done, _, info = env.step(action)
         rewards.append(reward)
+        print(env.data.sensordata[20])
         env.render()
 
     env.close()
@@ -31,5 +36,5 @@ def evaluate_model(model_path):
     plt.show()
 
 if __name__ == '__main__':
-    model_path = '../policies/po/ppo_quadruped.zip'
+    model_path = '../policies/po_ppo_v1/policy.zip'
     evaluate_model(model_path)

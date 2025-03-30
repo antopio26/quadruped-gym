@@ -137,15 +137,6 @@ class QuadrupedEnv(gym.Env):
         observation = self._get_obs()
         return observation, {}
 
-    def update_video_path(self, new_video_path):
-        self.video_path = new_video_path
-        if self.video_writer is not None:
-            self.video_writer.release()
-            self.video_writer = None
-        if self.save_video:
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            self.video_writer = cv2.VideoWriter(self.video_path, fourcc, self.render_fps, (self.width, self.height))
-
     def _get_obs(self):
         """Obtain observation from the simulation."""
         return self.data.sensordata.copy()
@@ -215,6 +206,28 @@ class QuadrupedEnv(gym.Env):
         # Use the helper function to compute position, orientation and size from two endpoints.
         # Here, radius determines the thickness of the arrow.
         mujoco.mjv_connector(scn.geoms[idx], arrow.type, radius, origin, endpoint)
+        scn.ngeom += 1
+
+    def render_point(self, position, color, radius=0.01):
+        """
+        Render a point at the given position.
+        """
+        # Check that there is room in the scene.geoms array.
+        scn = self.renderer.scene
+        if scn.ngeom >= scn.maxgeom:
+            return
+
+        # Initialize a new geom at index 'ngeom'
+        idx = scn.ngeom
+
+        # Set up the point geometry.
+        point = mujoco.MjvGeom()
+        point.type = mujoco.mjtGeom.mjGEOM_SPHERE
+        point.rgba[:] = np.array(color, dtype=np.float32)
+        point.size[:] = [radius, radius, radius]
+
+        # Initialize with default values; then set up with position:
+        mujoco.mjv_initGeom(scn.geoms[idx], point.type, point.size, position, np.eye(3, 3).reshape(9) , point.rgba)
         scn.ngeom += 1
 
     def render_custom_geoms(self):
