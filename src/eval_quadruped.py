@@ -10,31 +10,31 @@ def evaluate_model(model_path):
 
     env = WalkingQuadrupedEnv(render_mode="human", render_fps=30, save_video=False, frame_window=5)
 
-    env.control_inputs.set_orientation(np.pi / 2)
-    env.control_inputs.set_velocity_speed_alpha(0.3, np.pi / 2)
+    env.control_inputs.set_orientation(0)
+    env.control_inputs.set_velocity_speed_alpha(0.2, 0)
 
     model = PPO.load(model_path, env=env)
 
-    obs, _ = env.reset()
-    done = False
-    rewards = []
+    for i in range(8):
+        obs, _ = env.reset()
+        done = False
+        rewards = []
 
-    while not done:
-        action, _state = model.predict(obs, deterministic=True)
-        obs, reward, done, _, info = env.step(action)
-        rewards.append(reward)
-        print(env.data.sensordata[20])
-        env.render()
+        while not done:
+            action, _state = model.predict(obs, deterministic=False)
+            obs, reward, done, _, info = env.step(action)
+            rewards.append(reward)
+            env.render()
+
+        # Plot the rewards over steps
+        plt.plot(range(len(rewards)), rewards)
+        plt.xlabel('Step')
+        plt.ylabel('Reward')
+        plt.title('Evaluation Rewards Over Steps')
+        plt.show()
 
     env.close()
 
-    # Plot the rewards over steps
-    plt.plot(range(len(rewards)), rewards)
-    plt.xlabel('Step')
-    plt.ylabel('Reward')
-    plt.title('Evaluation Rewards Over Steps')
-    plt.show()
-
 if __name__ == '__main__':
-    model_path = '../policies/po_ppo_v1/policy.zip'
+    model_path = '../policies/po_ppo_local_ideal_v1/policy.zip'
     evaluate_model(model_path)
