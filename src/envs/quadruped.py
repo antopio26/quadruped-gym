@@ -83,6 +83,7 @@ class QuadrupedEnv(gym.Env):
         self.scene_option = mujoco.MjvOption()
         self.scene_option.flags[mujoco.mjtVisFlag.mjVIS_JOINT] = False
         self.scene_option.flags[mujoco.mjtVisFlag.mjVIS_CONTACTPOINT] = False
+        self.scene_option.frame = mujoco.mjtFrame.mjFRAME_SITE
         self.scene_option.geomgroup[:] = 1  # Enable all geom groups.
 
         # Define the action space: one actuator per joint (12 actuators assumed).

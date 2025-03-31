@@ -187,7 +187,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
                 + 5.0 * exp_dist(self.orientation_reward())
                 - 1.0 * exp_dist(self.body_height_cost())
                 - 0.5 * self.joint_posture_cost()
-                - 5.0 * exp_dist(self.ideal_position_cost())
+                - 5.0 * self.ideal_position_cost()
                 )
 
     ## DUMMY REWARD FUNCTIONS ##

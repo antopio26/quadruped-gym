@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
-from stable_baselines3 import PPO, SAC, A2C, TD3
+from stable_baselines3 import PPO, SAC, TD3
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from envs.po_walking_quad import WalkingQuadrupedEnv
@@ -18,7 +18,7 @@ def make_env():
     return env
 
 if __name__ == '__main__':
-    output_folder = '../policies/po_ppo_local_ideal_v1'
+    output_folder = '../policies/po_ppo_local_ideal_v2'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -47,18 +47,33 @@ if __name__ == '__main__':
     reward_callback = RewardCallback()
 
     filepath = os.path.join(output_folder, 'policy.zip')
+    steps_filepath = os.path.join(output_folder, 'steps.txt')
 
     # If the model file exists, load it
     if filepath and os.path.isfile(filepath):
         model = model.load(filepath, env=env)
         print("Previous model loaded.")
+        if os.path.isfile(steps_filepath):
+            with open(steps_filepath, 'r') as f:
+                start_step = int(f.read())
+        else:
+            start_step = 0
+    else:
+        start_step = 0
 
-    for i in range(8):
+    # Train the model for 8 steps
+    num_steps = 8
+
+    for i in range(start_step, start_step + num_steps):
         # Train the model
         model.learn(total_timesteps=500_000, progress_bar=True, callback=reward_callback)
 
         # Save the model
         model.save(filepath)
+
+        # Save the current step
+        with open(steps_filepath, 'w') as f:
+            f.write(str(i + 1))
 
         # Prepare data for plotting
         data = pd.DataFrame({
