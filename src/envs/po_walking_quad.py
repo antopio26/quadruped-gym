@@ -108,7 +108,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         Compute the ideal position based on the control inputs.
         """
         # Integrate velocity to get the ideal position
-        self.ideal_position += self.control_inputs.velocity * self.model.opt.timestep * self.frame_skip
+        self.ideal_position += self.control_inputs.global_velocity * self.model.opt.timestep * self.frame_skip
         return self.ideal_position
 
     def ideal_position_cost(self):
@@ -213,14 +213,8 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Render the control inputs as vectors.
         origin = self._get_vec3_sensor(self._body_pos_idx)
 
-        # TODO: Optimize code
-        # Rotate the velocity vector by the heading angle
-        heading_angle = np.arctan2(self.control_inputs.heading[1], self.control_inputs.heading[0])
-        rotation_matrix = np.array([[np.cos(heading_angle), -np.sin(heading_angle)], [np.sin(heading_angle), np.cos(heading_angle)]])
-        rotated_velocity = np.dot(rotation_matrix, self.control_inputs.velocity[:2])
-
         # Render the velocity vector in red
-        self.render_vector(origin, rotated_velocity, [1, 0, 0, 1], offset=0.1)
+        self.render_vector(origin, self.control_inputs.global_velocity, [1, 0, 0, 1], offset=0.1)
         # Render the heading vector in green
         self.render_vector(origin, self.control_inputs.heading, [0, 1, 0, 1], offset=0.05)
         # Render the ideal position point in blue
