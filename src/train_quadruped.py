@@ -13,12 +13,12 @@ def make_env():
     env = WalkingQuadrupedEnv(render_mode="rgb_array", render_fps=30, save_video=False, frame_window=5)
 
     env.control_inputs.set_orientation(np.pi / 2)
-    env.control_inputs.set_velocity_speed_alpha(0.2, np.pi / 2)
+    env.control_inputs.set_velocity_speed_alpha(0.2, 0)
 
     return env
 
 if __name__ == '__main__':
-    output_folder = '../policies/po_ppo_local_ideal_v0'
+    output_folder = '../policies/po_ppo_local_ideal_v1'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -82,7 +82,7 @@ if __name__ == '__main__':
         env = WalkingQuadrupedEnv(render_mode="human", render_fps=30, save_video=True, frame_window=5, video_path=new_video_path)
 
         env.control_inputs.set_orientation(np.pi / 2)
-        env.control_inputs.set_velocity_speed_alpha(0.2, np.pi / 2)
+        env.control_inputs.set_velocity_speed_alpha(0.2, 0)
 
         # Evaluate the model
         obs, _ = env.reset()

@@ -76,9 +76,14 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
 
     def step(self, action):
         """Apply the given action, advance the simulation, and return the observation, reward, done, truncated, and info."""
+
+        # Update the ideal position
+        self.compute_ideal_position()
+
+        # Step the simulation
         observation, reward, terminated, truncated, info = super().step(action)
 
-        self.compute_ideal_position()
+        # Update the observation buffer
         self.observation_buffer.append(observation)
 
         if len(self.observation_buffer) > self.frame_window:
@@ -136,7 +141,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
 
     def heading_reward(self):
         # Reward for facing the right direction.
-        return np.dot(self._get_vec3_sensor(self._body_xaxis_idx)[0:1], self.control_inputs.heading[0:1])
+        return np.dot(self._get_vec3_sensor(self._body_xaxis_idx)[:2], self.control_inputs.heading[:2])
 
     def orientation_reward(self):
         # Reward for staying upright.
@@ -178,7 +183,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
                 - 1.0 * self.control_cost()
                 + 10.0 * self.progress_direction_reward_local()
                 - 10.0 * self.progress_speed_cost_local()
-                + 20.0 * self.heading_reward()
+                + 10.0 * self.heading_reward()
                 + 5.0 * exp_dist(self.orientation_reward())
                 - 1.0 * exp_dist(self.body_height_cost())
                 - 0.5 * self.joint_posture_cost()
@@ -208,8 +213,14 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Render the control inputs as vectors.
         origin = self._get_vec3_sensor(self._body_pos_idx)
 
+        # TODO: Optimize code
+        # Rotate the velocity vector by the heading angle
+        heading_angle = np.arctan2(self.control_inputs.heading[1], self.control_inputs.heading[0])
+        rotation_matrix = np.array([[np.cos(heading_angle), -np.sin(heading_angle)], [np.sin(heading_angle), np.cos(heading_angle)]])
+        rotated_velocity = np.dot(rotation_matrix, self.control_inputs.velocity[:2])
+
         # Render the velocity vector in red
-        self.render_vector(origin, self.control_inputs.velocity, [1, 0, 0, 1], offset=0.1)
+        self.render_vector(origin, rotated_velocity, [1, 0, 0, 1], offset=0.1)
         # Render the heading vector in green
         self.render_vector(origin, self.control_inputs.heading, [0, 1, 0, 1], offset=0.05)
         # Render the ideal position point in blue
