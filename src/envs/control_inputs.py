@@ -49,6 +49,28 @@ class VelocityHeadingControls:
         self.heading[1] = np.sin(theta)
         self.update_global_velocity()
 
+    def get_global_velocity_alpha_speed(self):
+        """
+        Returns the velocity in polar coordinates (speed and angle).
+        """
+        speed = np.linalg.norm(self.global_velocity[0:2])
+        alpha = np.arctan2(self.global_velocity[1], self.global_velocity[0])
+        return speed, alpha
+
+    def get_velocity_aplha_speed(self):
+        """
+        Returns the velocity in polar coordinates (speed and angle).
+        """
+        speed = np.linalg.norm(self.velocity[0:2])
+        alpha = np.arctan2(self.velocity[1], self.velocity[0])
+        return speed, alpha
+
+    def get_heading_theta(self):
+        """
+        Returns the heading angle theta.
+        """
+        return np.arctan2(self.heading[1], self.heading[0])
+
     def sample(self, options=None):
         """
         Sample random control inputs using the provided options dictionary.

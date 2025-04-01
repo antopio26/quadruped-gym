@@ -6,3 +6,4 @@ opencv-python
 stable-baselines3[extra]
 seaborn
 sbx-rl
+ahrs

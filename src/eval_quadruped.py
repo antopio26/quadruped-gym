@@ -1,6 +1,6 @@
 import numpy as np
 from stable_baselines3 import PPO
-from envs.po_walking_quad import WalkingQuadrupedEnv
+from envs.po_walking_quad import POWalkingQuadrupedEnv
 import matplotlib.pyplot as plt
 
 
@@ -8,7 +8,7 @@ def evaluate_model(model_path):
     # More legible printing from numpy.
     np.set_printoptions(precision=3, suppress=True, linewidth=100)
 
-    env = WalkingQuadrupedEnv(frame_window=5, random_init=True)
+    env = POWalkingQuadrupedEnv(obs_window=5, random_init=True)
 
     env.control_inputs.set_orientation(0)
     env.control_inputs.set_velocity_speed_alpha(0.2, 0)

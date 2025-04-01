@@ -15,7 +15,7 @@ def make_env(reset_options=None):
         render_mode="rgb_array",
         render_fps=30,
         save_video=False,
-        frame_window=5,
+        obs_window=5,
         random_controls=True,
         random_init=False,
         reset_options=reset_options
@@ -23,7 +23,7 @@ def make_env(reset_options=None):
     return new_env
 
 if __name__ == '__main__':
-    output_folder = '../policies/po_ppo_local_ideal_pos_v0'
+    output_folder = '../policies/po_v1_ppo_local_ideal_pos_v0'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -33,11 +33,11 @@ if __name__ == '__main__':
 
     # Define the options dictionary
     options = {
-        'min_speed': 0.0,
-        'max_speed': 0.5,
+        # 'min_speed': 0.0,
+        # 'max_speed': 0.5,
         'fixed_heading_angle': 0.0,
-        'fixed_velocity_angle': None,
-        'fixed_speed': None
+        'fixed_velocity_angle': 0.0,
+        'fixed_speed': 0.2
     }
 
     # Create a vectorized environment with 10 parallel environments
@@ -114,14 +114,11 @@ if __name__ == '__main__':
             render_fps=30,
             save_video=True,
             video_path=new_video_path,
-            frame_window=5,
+            obs_window=5,
             random_controls=True,
             random_init=False,
             reset_options=options
         )
-
-        # env.control_inputs.set_orientation(0)
-        # env.control_inputs.set_velocity_speed_alpha(0.2, 0)
 
         # Evaluate the model
         obs, _ = env.reset()

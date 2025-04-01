@@ -1,18 +1,15 @@
 import numpy as np
 from mujoco import mj_name2id, mjtObj
-from gymnasium import spaces
 
 from .quadruped import QuadrupedEnv
 from .control_inputs import VelocityHeadingControls
-from ..utils.math import exp_dist
+from .math import exp_dist
+
 
 class WalkingQuadrupedEnv(QuadrupedEnv):
 
-    def __init__(self, frame_window=1, random_controls=False, random_init=False, reset_options=None, **kwargs):
+    def __init__(self, random_controls=False, random_init=False, reset_options=None, **kwargs):
         super(WalkingQuadrupedEnv, self).__init__(**kwargs)
-
-        self.frame_window = frame_window
-        self.observation_buffer = []
 
         self.random_controls = random_controls
         self.random_init = random_init
@@ -58,6 +55,14 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Render the ideal position point in blue
         self.render_point(self.ideal_position, [1, 0, 1, 1])
 
+    def compute_ideal_position(self):
+        """
+        Compute the ideal position based on the control inputs.
+        """
+        # Integrate velocity to get the ideal position
+        self.ideal_position += self.control_inputs.global_velocity * self.model.opt.timestep * self.frame_skip
+        return self.ideal_position
+
     def reset(self, seed=None, options=None):
         """
         Reset the simulation to an initial state and return the initial observation.
@@ -66,8 +71,6 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
             options = self.reset_options
 
         observation, info = super().reset(seed=seed, options=options)
-        self.observation_buffer = [observation] * self.frame_window
-        stacked_obs = np.concatenate(self.observation_buffer)
 
         # Reset the ideal position
         self.ideal_position = np.array([0.0, 0.0, 0.0], dtype=np.float64)  # TODO: Generalize
@@ -79,7 +82,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         if self.random_controls:
             self.control_inputs.sample(options=options)
 
-        return stacked_obs, info
+        return observation, info
 
     def step(self, action):
         """
@@ -92,14 +95,6 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         observation, reward, terminated, truncated, info = super().step(action)
 
         return observation, reward, terminated, truncated, info
-
-    def compute_ideal_position(self):
-        """
-        Compute the ideal position based on the control inputs.
-        """
-        # Integrate velocity to get the ideal position
-        self.ideal_position += self.control_inputs.global_velocity * self.model.opt.timestep * self.frame_skip
-        return self.ideal_position
 
     ### Termination Logic ###
 
@@ -208,8 +203,8 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
                 + 10.0 * self.progress_direction_reward_local()
                 - 10.0 * self.progress_speed_cost_local()
                 + 5.0 * self.heading_reward()
-                + 5.0 * exp_dist(self.orientation_reward())
-                - 1.0 * exp_dist(self.body_height_cost())
+                + 5.0 * self.orientation_reward() # exp_dist
+                - 1.0 * self.body_height_cost() # exp_dist
                 - 0.5 * self.joint_posture_cost()
                 - 5.0 * self.ideal_position_cost()
                 )
