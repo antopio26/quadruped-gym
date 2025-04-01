@@ -49,14 +49,46 @@ class VelocityHeadingControls:
         self.heading[1] = np.sin(theta)
         self.update_global_velocity()
 
-    def sample(self, min_speed=0.5, max_speed=1.0):
+    def sample(self, options=None):
         """
-        Randomly samples velocity and orientation, updates the control inputs,
-        and returns the updated velocity, heading, and global_velocity.
+        Sample random control inputs using the provided options dictionary.
+
+        :param options: Dictionary with sampling options. Possible keys:
+                        - 'min_speed': Minimum speed for velocity sampling.
+                        - 'max_speed': Maximum speed for velocity sampling.
+                        - 'fixed_heading_angle': Fixed heading angle if provided.
+                        - 'fixed_velocity_angle': Fixed velocity angle if provided.
+                        - 'fixed_speed': Fixed speed if provided.
         """
-        speed = np.random.uniform(min_speed, max_speed)
-        alpha = np.random.uniform(-np.pi, np.pi)
-        theta = np.random.uniform(-np.pi, np.pi)
-        self.set_velocity_speed_alpha(speed, alpha)
+        if options is None:
+            options = {}
+
+        min_speed = options.get('min_speed', 0.0)
+        max_speed = options.get('max_speed', 1.0)
+        fixed_heading_angle = options.get('fixed_heading_angle', None)
+        fixed_velocity_angle = options.get('fixed_velocity_angle', None)
+        fixed_speed = options.get('fixed_speed', None)
+
+        # Sample heading angle if not fixed
+        if fixed_heading_angle is not None:
+            theta = fixed_heading_angle
+        else:
+            theta = np.random.uniform(-np.pi, np.pi)
+
+        # Set orientation
         self.set_orientation(theta)
-        return self.velocity, self.heading, self.global_velocity
+
+        # Sample velocity angle if not fixed
+        if fixed_velocity_angle is not None:
+            alpha = fixed_velocity_angle
+        else:
+            alpha = np.random.uniform(-np.pi, np.pi)
+
+        # Sample speed if not fixed
+        if fixed_speed is not None:
+            speed = fixed_speed
+        else:
+            speed = np.random.uniform(min_speed, max_speed)
+
+        # Set velocity
+        self.set_velocity_speed_alpha(speed, alpha)

@@ -4,21 +4,26 @@ import pandas as pd
 from stable_baselines3 import PPO, SAC, TD3
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import SubprocVecEnv
-from envs.po_walking_quad import WalkingQuadrupedEnv
+from envs.po_walking_quad import POWalkingQuadrupedEnv
 from utils.plot import plot_data_line
 import matplotlib.pyplot as plt
 
 # Function to create a new environment instance
-def make_env():
-    env = WalkingQuadrupedEnv(render_mode="rgb_array", render_fps=30, save_video=False, frame_window=5)
-
-    env.control_inputs.set_orientation(0)
-    env.control_inputs.set_velocity_speed_alpha(0.2, 0)
-
-    return env
+def make_env(reset_options=None):
+    new_env = POWalkingQuadrupedEnv(
+        max_time=20,
+        render_mode="rgb_array",
+        render_fps=30,
+        save_video=False,
+        frame_window=5,
+        random_controls=True,
+        random_init=False,
+        reset_options=reset_options
+    )
+    return new_env
 
 if __name__ == '__main__':
-    output_folder = '../policies/po_ppo_local_ideal_v2'
+    output_folder = '../policies/po_ppo_local_ideal_pos_v0'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -26,9 +31,18 @@ if __name__ == '__main__':
     os.makedirs(os.path.join(output_folder, 'videos'), exist_ok=True)
     os.makedirs(os.path.join(output_folder, 'plots'), exist_ok=True)
 
+    # Define the options dictionary
+    options = {
+        'min_speed': 0.0,
+        'max_speed': 0.5,
+        'fixed_heading_angle': 0.0,
+        'fixed_velocity_angle': None,
+        'fixed_speed': None
+    }
+
     # Create a vectorized environment with 10 parallel environments
     num_envs = 10
-    env = SubprocVecEnv([make_env for _ in range(num_envs)])
+    env = SubprocVecEnv([lambda: make_env(options) for _ in range(num_envs)])
 
     # Define the model
     model = PPO("MlpPolicy", env)
@@ -62,7 +76,7 @@ if __name__ == '__main__':
         start_step = 0
 
     # Train the model for 8 steps
-    num_steps = 8
+    num_steps = 20
 
     for i in range(start_step, start_step + num_steps):
         # Train the model
@@ -94,10 +108,20 @@ if __name__ == '__main__':
         # Update video path
         new_video_path = os.path.join(output_folder, f'videos/run_{i}.mp4')
 
-        env = WalkingQuadrupedEnv(render_mode="human", render_fps=30, save_video=True, frame_window=5, video_path=new_video_path)
+        env = POWalkingQuadrupedEnv(
+            max_time=20,
+            render_mode="human",
+            render_fps=30,
+            save_video=True,
+            video_path=new_video_path,
+            frame_window=5,
+            random_controls=True,
+            random_init=False,
+            reset_options=options
+        )
 
-        env.control_inputs.set_orientation(0)
-        env.control_inputs.set_velocity_speed_alpha(0.2, 0)
+        # env.control_inputs.set_orientation(0)
+        # env.control_inputs.set_velocity_speed_alpha(0.2, 0)
 
         # Evaluate the model
         obs, _ = env.reset()

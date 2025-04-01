@@ -8,7 +8,7 @@ def evaluate_model(model_path):
     # More legible printing from numpy.
     np.set_printoptions(precision=3, suppress=True, linewidth=100)
 
-    env = WalkingQuadrupedEnv(render_mode="human", render_fps=30, save_video=False, frame_window=5)
+    env = WalkingQuadrupedEnv(frame_window=5, random_init=True)
 
     env.control_inputs.set_orientation(0)
     env.control_inputs.set_velocity_speed_alpha(0.2, 0)
