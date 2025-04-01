@@ -41,11 +41,11 @@ if __name__ == '__main__':
     }
 
     # Create a vectorized environment with 10 parallel environments
-    num_envs = 10
+    num_envs = 50
     env = SubprocVecEnv([lambda: make_env(options) for _ in range(num_envs)])
 
     # Define the model
-    model = PPO("MlpPolicy", env)
+    model = PPO("MlpPolicy", env, device='cuda')
 
     class RewardCallback(BaseCallback):
         def __init__(self, verbose=0):
@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     for i in range(start_step, start_step + num_steps):
         # Train the model
-        model.learn(total_timesteps=500_000, progress_bar=True, callback=reward_callback)
+        model.learn(total_timesteps=50_000, progress_bar=True, callback=reward_callback)
 
         # Save the model
         model.save(filepath)

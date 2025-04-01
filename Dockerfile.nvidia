@@ -1,0 +1,53 @@
+FROM pytorch/pytorch:2.5.1-cuda11.8-cudnn9-devel 
+
+RUN apt-get update
+# tzdata is required below. To avoid hanging, install it first.
+RUN DEBIAN_FRONTEND="noninteractive" apt-get install tzdata -y
+
+RUN apt-get install --no-install-recommends \
+  libglfw3 \
+  libglew-dev \
+  patchelf \
+  gcc \
+  python3.8-dev \
+  unzip \
+  libxrandr2 \
+  libxinerama1 \
+  libxcursor1 \
+  vim \
+  openssh-server \
+  # nvidia-container-toolkit # Usually not needed *inside* the container image itself
+  # Added essential Qt and XCB dependencies
+  libxkbcommon-x11-0 \
+  libxcb-icccm4 \
+  libxcb-image0 \
+  libxcb-keysyms1 \
+  libxcb-randr0 \
+  libxcb-render-util0 \
+  libxcb-shape0 \
+  libxcb-shm0 \
+  libxcb-sync1 \
+  libxcb-xfixes0 \
+  libxcb-xinerama0 \
+  libqt5widgets5 \
+  libqt5gui5 \
+  libqt5dbus5 \
+  # Keeping original xcb libs just in case, though some overlap above
+  libxcb1 libxcb-glx0 \
+  -y && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/* # Clean up apt cache
+
+# Rest of your Dockerfile (ENV, WORKDIR, COPY, RUN pip install...)
+# ...
+
+ENV LD_LIBRARY_PATH "/root/.mujoco/mujoco200/bin:${LD_LIBRARY_PATH}"
+RUN echo 'export LD_LIBRARY_PATH=/root/.mujoco/mujoco200/bin:${LD_LIBRARY_PATH}' >> /etc/bash.bashrc
+
+WORKDIR /workspace
+COPY requirements.txt requirements.txt
+
+RUN pip install --upgrade pip
+
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
