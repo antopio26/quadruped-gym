@@ -1,0 +1,1 @@
+docker build -t ait4automation -f Dockerfile.nvidia . # Or your preferred image name
