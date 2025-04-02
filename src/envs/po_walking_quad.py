@@ -33,12 +33,14 @@ class POWalkingQuadrupedEnv(WalkingQuadrupedEnv):
         accel = self._get_vec3_sensor(self._body_accel_idx)
         gyro = self._get_vec3_sensor(self._body_gyro_idx)
 
-        # Compute the orientation using the Madgwick filter and IMU data
-        self.computed_orientation = self.madgwick_filter.updateIMU(
-            self.computed_orientation,
-            gyr=gyro,
-            acc=accel
-        )
+        # Wait settling time before starting orientation integration
+        if self.data.time > self.settling_time / 2:
+            # Compute the orientation using the Madgwick filter and IMU data
+            self.computed_orientation = self.madgwick_filter.updateIMU(
+                self.computed_orientation,
+                gyr=gyro,
+                acc=accel
+            )
 
         # Convert to euler angles
         euler_angles = Quaternion(self.computed_orientation).to_angles()
@@ -66,6 +68,8 @@ class POWalkingQuadrupedEnv(WalkingQuadrupedEnv):
         self.observation_buffer = [observation] * self.obs_window
         stacked_obs = np.concatenate(self.observation_buffer)
 
+        self.computed_orientation = self.data.qpos[3:7]
+
         return stacked_obs, info
 
     def step(self, action):
@@ -85,4 +89,7 @@ class POWalkingQuadrupedEnv(WalkingQuadrupedEnv):
             self.observation_buffer = [self.observation_buffer[0]] * (self.obs_window - len(self.observation_buffer)) + self.observation_buffer
 
         stacked_obs = np.concatenate(self.observation_buffer)
+
         return stacked_obs, reward, terminated, truncated, info
+
+    # TODO: Add reward over orientation estimation error

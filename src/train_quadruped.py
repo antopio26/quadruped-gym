@@ -12,12 +12,8 @@ import matplotlib.pyplot as plt
 def make_env(reset_options=None):
     new_env = POWalkingQuadrupedEnv(
         max_time=20,
-        render_mode="rgb_array",
-        render_fps=30,
-        save_video=False,
         obs_window=5,
         random_controls=True,
-        random_init=False,
         reset_options=reset_options
     )
     return new_env
@@ -111,12 +107,10 @@ if __name__ == '__main__':
         env = POWalkingQuadrupedEnv(
             max_time=20,
             render_mode="human",
-            render_fps=30,
             save_video=True,
             video_path=new_video_path,
             obs_window=5,
             random_controls=True,
-            random_init=False,
             reset_options=options
         )
 

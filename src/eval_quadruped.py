@@ -8,14 +8,14 @@ def evaluate_model(model_path):
     # More legible printing from numpy.
     np.set_printoptions(precision=3, suppress=True, linewidth=100)
 
-    env = POWalkingQuadrupedEnv(obs_window=5, random_init=True)
+    env = POWalkingQuadrupedEnv(render_mode="human", obs_window=5)
 
     env.control_inputs.set_orientation(0)
     env.control_inputs.set_velocity_speed_alpha(0.2, 0)
 
     model = PPO.load(model_path, env=env)
 
-    for i in range(8):
+    for i in range(1):
         obs, _ = env.reset()
         done = False
         rewards = []
@@ -36,5 +36,5 @@ def evaluate_model(model_path):
     env.close()
 
 if __name__ == '__main__':
-    model_path = '../policies/po_ppo_local_ideal_v1/policy.zip'
+    model_path = '../policies/po_v1_ppo_local_ideal_pos_v0/policy.zip'
     evaluate_model(model_path)

@@ -8,7 +8,7 @@ from .math import exp_dist
 
 class WalkingQuadrupedEnv(QuadrupedEnv):
 
-    def __init__(self, random_controls=False, random_init=False, reset_options=None, **kwargs):
+    def __init__(self, settling_time = 0, random_controls=False, random_init=False, reset_options=None, **kwargs):
         super(WalkingQuadrupedEnv, self).__init__(**kwargs)
 
         self.random_controls = random_controls
@@ -31,6 +31,14 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Initialize control inputs
         self.control_inputs = VelocityHeadingControls()
         self.ideal_position = np.array([0.0, 0.0, 0.0], dtype=np.float64) # TODO: Generalize
+
+        # Joint centers
+        hip_center = 0.0
+        knee_center = 0.0
+        ankle_center = - 0.5
+        self.joint_centers = np.array([hip_center, knee_center, ankle_center] * 4, dtype=np.float64)
+
+        self.settling_time = settling_time
 
         # Initialize previous control inputs
         self.previous_ctrl = np.zeros_like(self.data.ctrl)
@@ -90,6 +98,10 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         # Update the ideal position
         self.compute_ideal_position()
+
+        # Mask actions for settling time
+        if self.data.time < self.settling_time:
+            action = np.array(self.joint_centers)
 
         # Step the simulation
         observation, reward, terminated, truncated, info = super().step(action)
@@ -170,10 +182,8 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         Reward for keeping the joints in a certain posture.
         """
-        foot_center = - 0.5
-        centers = np.array([0, 0, foot_center, 0, 0, foot_center, 0, 0, foot_center, 0, 0, foot_center])
 
-        return np.sum(np.square(self.data.ctrl - centers))
+        return np.sum(np.square(self.data.ctrl - self.joint_centers))
 
     def control_cost(self):
         """
