@@ -19,10 +19,10 @@ class POWalkingQuadrupedEnv(WalkingQuadrupedEnv):
         self.computed_orientation = np.array([1., 0., 0., 0.])
 
         # Redefine observation space to include control inputs and mask some original observations
-        obs_size = 6 # Acceleration (3) + Euler angles for orientation (3)
+        obs_size = 9 # Gyroscope (3) + Acceleration (3) + Euler angles for orientation (3)
         obs_size += 2 # Only x and y components of body_vel (optical flow)
         obs_size += self.model.nu  # Add control inputs
-        obs_size += 3  # Add velocity and heading (alpha, speed, theta)
+        obs_size += 3  # Add velocity and heading (vx, vy, theta)
         obs_size *= self.obs_window  # Account for stacking
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_size,), dtype=np.float32)
 
@@ -45,17 +45,14 @@ class POWalkingQuadrupedEnv(WalkingQuadrupedEnv):
         # Convert to euler angles
         euler_angles = Quaternion(self.computed_orientation).to_angles()
 
-        # Get the control inputs
-        alpha, speed = self.control_inputs.get_velocity_aplha_speed()
-        theta = self.control_inputs.get_heading_theta()
-
         obs = np.concatenate([
-            # gyro
+            gyro,
             accel,
             euler_angles,
-            self._get_vec3_sensor(self._body_vel_idx)[0:2],  # Only x and y components (optical flow)
+            self._get_vec3_sensor(self._body_vel_idx)[:2],  # Only x and y components (optical flow)
             self.data.ctrl,
-            [alpha, speed, theta]
+            self.control_inputs.velocity[:2], # Only x and y components of velocity
+            [self.control_inputs.get_heading_theta()],  # Heading angle
         ])
         return obs
 

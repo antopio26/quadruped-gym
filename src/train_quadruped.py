@@ -19,7 +19,7 @@ def make_env(reset_options=None):
     return new_env
 
 if __name__ == '__main__':
-    output_folder = '../policies/po_v1_ppo_local_ideal_pos_v1'
+    output_folder = '../policies/po_v2_ppo_local_ideal_pos_v0'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -33,7 +33,7 @@ if __name__ == '__main__':
         # 'max_speed': 0.5,
         'fixed_heading_angle': 0.0,
         'fixed_velocity_angle': 0.0,
-        'fixed_speed': 0.2
+        'fixed_speed': 0.3
     }
 
     # Create a vectorized environment with 10 parallel environments

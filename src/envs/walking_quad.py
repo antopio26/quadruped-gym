@@ -189,18 +189,12 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         Reward for avoiding large control inputs.
         """
-
-        """
         # Calculate the difference between current and previous control inputs
         control_diff = self.data.ctrl - self.previous_ctrl
         # Update previous control inputs
         self.previous_ctrl = np.copy(self.data.ctrl)
         # Penalize large differences
         return np.sum(np.square(control_diff))
-        """
-
-        return np.linalg.norm(self.data.act_dot)
-
 
     def alive_bonus(self):
         # Constant bonus for staying "alive".
@@ -217,19 +211,32 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
     # (like not flipping or keeping the body upright) can be added.
 
     # NOTE: Maybe multiply some of the rewards
-
+    """ 20 steps
     def input_control_reward(self):
         return (+ 1.0 * self.alive_bonus()
-                - 5.0 * self.control_cost()
+                - 2.0 * self.control_cost()
                 + 10.0 * self.progress_direction_reward_local()
                 - 10.0 * self.progress_speed_cost_local()
                 + 5.0 * self.heading_reward()
-                + 5.0 * self.orientation_reward() # exp_dist
-                - 1.0 * self.body_height_cost() # exp_dist
+                + 5.0 * exp_dist(self.orientation_reward())
+                - 1.0 * exp_dist(self.body_height_cost())
                 - 0.5 * self.joint_posture_cost()
                 - 5.0 * self.ideal_position_cost()
-                - 1.0 * self.vibration_cost()
+                )            
+    """
+
+    def input_control_reward(self):
+        return (+ 1.0 * self.alive_bonus()
+                - 4.0 * self.control_cost()
+                + 10.0 * self.progress_direction_reward_local()
+                - 10.0 * self.progress_speed_cost_local()
+                + 5.0 * self.heading_reward()
+                + 5.0 * exp_dist(self.orientation_reward())
+                - 1.0 * exp_dist(self.body_height_cost())
+                - 0.2 * self.joint_posture_cost()
+                - 5.0 * self.ideal_position_cost()
                 )
+
 
     def _default_reward(self):
         return self.input_control_reward()
