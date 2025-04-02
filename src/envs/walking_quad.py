@@ -189,18 +189,29 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         Reward for avoiding large control inputs.
         """
+
+        """
         # Calculate the difference between current and previous control inputs
         control_diff = self.data.ctrl - self.previous_ctrl
         # Update previous control inputs
         self.previous_ctrl = np.copy(self.data.ctrl)
         # Penalize large differences
         return np.sum(np.square(control_diff))
+        """
+
+        return np.linalg.norm(self.data.act_dot)
+
 
     def alive_bonus(self):
         # Constant bonus for staying "alive".
         return 1
 
     # TODO: Vibration cost
+    def vibration_cost(self):
+        """
+        Reward for avoiding large vibrations.
+        """
+        return np.linalg.norm(self._get_vec3_sensor(self._body_accel_idx) - np.array([0,0,-9.81])) + np.linalg.norm(self._get_vec3_sensor(self._body_gyro_idx))
 
     # Other rewards based on frame position, orientation, etc.
     # (like not flipping or keeping the body upright) can be added.
@@ -209,7 +220,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
 
     def input_control_reward(self):
         return (+ 1.0 * self.alive_bonus()
-                - 2.0 * self.control_cost()
+                - 5.0 * self.control_cost()
                 + 10.0 * self.progress_direction_reward_local()
                 - 10.0 * self.progress_speed_cost_local()
                 + 5.0 * self.heading_reward()
@@ -217,6 +228,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
                 - 1.0 * self.body_height_cost() # exp_dist
                 - 0.5 * self.joint_posture_cost()
                 - 5.0 * self.ideal_position_cost()
+                - 1.0 * self.vibration_cost()
                 )
 
     def _default_reward(self):

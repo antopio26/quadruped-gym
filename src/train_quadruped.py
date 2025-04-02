@@ -19,7 +19,7 @@ def make_env(reset_options=None):
     return new_env
 
 if __name__ == '__main__':
-    output_folder = '../policies/po_v1_ppo_local_ideal_pos_v0'
+    output_folder = '../policies/po_v1_ppo_local_ideal_pos_v1'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -122,6 +122,7 @@ if __name__ == '__main__':
         while not done:
             action, _state = model.predict(obs, deterministic=True)
             obs, reward, done, _, info = env.step(action)
+
             env.render()
 
         env.close()
