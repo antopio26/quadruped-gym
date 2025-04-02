@@ -211,7 +211,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
     # (like not flipping or keeping the body upright) can be added.
 
     # NOTE: Maybe multiply some of the rewards
-    """ 20 steps
+    # 20 steps
     def input_control_reward(self):
         return (+ 1.0 * self.alive_bonus()
                 - 2.0 * self.control_cost()
@@ -221,19 +221,6 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
                 + 5.0 * exp_dist(self.orientation_reward())
                 - 1.0 * exp_dist(self.body_height_cost())
                 - 0.5 * self.joint_posture_cost()
-                - 5.0 * self.ideal_position_cost()
-                )            
-    """
-
-    def input_control_reward(self):
-        return (+ 1.0 * self.alive_bonus()
-                - 4.0 * self.control_cost()
-                + 10.0 * self.progress_direction_reward_local()
-                - 10.0 * self.progress_speed_cost_local()
-                + 5.0 * self.heading_reward()
-                + 5.0 * exp_dist(self.orientation_reward())
-                - 1.0 * exp_dist(self.body_height_cost())
-                - 0.2 * self.joint_posture_cost()
                 - 5.0 * self.ideal_position_cost()
                 )
 
