@@ -50,8 +50,10 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
             min_freq = 1 # Hz
         )
 
-        self.ctrl_f_est = 0.0
-        self.ctrl_a_est = 0.0
+        self.ctrl_f_est = np.zeros(12, dtype=np.float32)
+        self.ctrl_a_est = np.zeros(12, dtype=np.float32)
+
+        self.info = {}
 
     def initialize_robot_state(self):
         """
@@ -100,7 +102,9 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         if self.random_controls:
             self.control_inputs.sample(options=options)
 
-        return observation, info
+        self.info = {}
+
+        return observation, self.info
 
     def step(self, action):
         """
@@ -112,6 +116,9 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Update frequency and amplitude estimator
         self.ctrl_f_est, self.ctrl_a_est = self.frequency_amplitude_estimator.update(self.data.ctrl)
 
+        # self.info['ctrl_f_est'] = self.ctrl_f_est
+        # self.info['ctrl_a_est'] = self.ctrl_a_est
+
         # Mask actions for settling time
         if self.data.time < self.settling_time:
             action = np.array(self.joint_centers)
@@ -119,7 +126,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Step the simulation
         observation, reward, terminated, truncated, info = super().step(action)
 
-        return observation, reward, terminated, truncated, info
+        return observation, reward, terminated, truncated, self.info
 
     ### Termination Logic ###
 
@@ -143,6 +150,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         current_position = self._get_vec3_sensor(self._body_pos_idx)
         distance = np.linalg.norm(current_position[:2] - self.ideal_position[:2])
+
         return distance  # Negative reward for larger distances
 
     def progress_direction_reward_global(self):
@@ -270,18 +278,40 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
     '''
 
     def input_control_reward(self):
-        return (+ 1.0 * self.alive_bonus()
-                - 2.0 * self.control_cost()
-                + 10.0 * self.progress_direction_reward_local()
-                - 10.0 * self.progress_speed_cost_local()
-                + 5.0 * self.heading_reward()
-                + 5.0 * exp_dist(self.orientation_reward())
-                - 1.0 * exp_dist(self.body_height_cost())
-                - 0.5 * self.joint_posture_cost()
-                # - 5.0 * self.ideal_position_cost()
-                - 2.5 * self.control_amplitude_cost()
-                - 8.0 * self.control_frequency_cost()
-                )
+
+        keys = [
+            'alive_bonus',
+            'control_cost',
+            'progress_direction_reward_local',
+            'progress_speed_cost_local',
+            'heading_reward',
+            'orientation_reward',
+            'body_height_cost',
+            'joint_posture_cost',
+            'ideal_position_cost',
+            'control_amplitude_cost',
+            'control_frequency_cost'
+        ]
+
+        values = [
+            + 1.0 * self.alive_bonus(),
+            - 2.0 * self.control_cost(),
+            + 10.0 * self.progress_direction_reward_local(),
+            - 10.0 * self.progress_speed_cost_local(),
+            + 5.0 * self.heading_reward(),
+            + 5.0 * exp_dist(self.orientation_reward()),
+            - 1.0 * exp_dist(self.body_height_cost()),
+            - 0.5 * self.joint_posture_cost(),
+            - 0.0 * self.ideal_position_cost(),
+            - 2.5 * self.control_amplitude_cost(),
+            - 8.0 * self.control_frequency_cost()
+        ]
+
+        # Create a dictionary of rewards
+        self.info = {key: value for key, value in zip(keys, values)}
+
+        # Sum all values
+        return sum(values)
 
     # NOTE: I think rewards should judge an action, not a state so maybe
     #       for some of these rewards we should consider the derivative
