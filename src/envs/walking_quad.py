@@ -3,7 +3,7 @@ from mujoco import mj_name2id, mjtObj
 
 from .quadruped import QuadrupedEnv
 from .control_inputs import VelocityHeadingControls
-from .math import exp_dist
+from .math_utils import exp_dist, OnlineFrequencyAmplitudeEstimation
 
 
 class WalkingQuadrupedEnv(QuadrupedEnv):
@@ -42,6 +42,16 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
 
         # Initialize previous control inputs
         self.previous_ctrl = np.zeros_like(self.data.ctrl)
+
+        # Initialize frequency and amplitude estimator for actuation
+        self.frequency_amplitude_estimator = OnlineFrequencyAmplitudeEstimation(
+            n_channels = 12,
+            dt = self.model.opt.timestep * self.frame_skip,
+            min_freq = 1 # Hz
+        )
+
+        self.ctrl_f_est = 0.0
+        self.ctrl_a_est = 0.0
 
     def initialize_robot_state(self):
         """
@@ -98,6 +108,9 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         # Update the ideal position
         self.compute_ideal_position()
+
+        # Update frequency and amplitude estimator
+        self.ctrl_f_est, self.ctrl_a_est = self.frequency_amplitude_estimator.update(self.data.ctrl)
 
         # Mask actions for settling time
         if self.data.time < self.settling_time:
@@ -182,7 +195,6 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         Reward for keeping the joints in a certain posture.
         """
-
         return np.sum(np.square(self.data.ctrl - self.joint_centers))
 
     def control_cost(self):
@@ -196,22 +208,39 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Penalize large differences
         return np.sum(np.square(control_diff))
 
+    def control_frequency_cost(self, target_frequencies = [2.0, 2.0, 0.0]):
+        """
+        Reward for avoiding large control frequencies.
+        """
+        target = np.array(target_frequencies * 4, dtype=np.float32)
+
+        # Penalize large frequencies
+        return np.sum(np.square(self.ctrl_f_est - target))
+
+    def control_amplitude_cost(self, target_amplitudes = [1.0, 1.0, 0.0]):
+        """
+        Reward for targeting a specific control amplitude.
+        """
+        target = np.array(target_amplitudes * 4, dtype=np.float32)
+
+        # Penalize large amplitudes
+        return np.sum(np.square(self.ctrl_a_est - target))
+
     def alive_bonus(self):
-        # Constant bonus for staying "alive".
+        """
+        Reward for staying alive.
+        """
         return 1
 
     # TODO: Vibration cost
-    def vibration_cost(self):
-        """
-        Reward for avoiding large vibrations.
-        """
-        return np.linalg.norm(self._get_vec3_sensor(self._body_accel_idx) - np.array([0,0,-9.81])) + np.linalg.norm(self._get_vec3_sensor(self._body_gyro_idx))
 
     # Other rewards based on frame position, orientation, etc.
     # (like not flipping or keeping the body upright) can be added.
 
     # NOTE: Maybe multiply some of the rewards
-    # 20 steps
+
+    '''
+    20 steps
     def input_control_reward(self):
         return (+ 1.0 * self.alive_bonus()
                 - 2.0 * self.control_cost()
@@ -223,7 +252,21 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
                 - 0.5 * self.joint_posture_cost()
                 - 5.0 * self.ideal_position_cost()
                 )
+    '''
 
+    def input_control_reward(self):
+        return (+ 1.0 * self.alive_bonus()
+                - 2.0 * self.control_cost()
+                + 10.0 * self.progress_direction_reward_local()
+                - 10.0 * self.progress_speed_cost_local()
+                + 5.0 * self.heading_reward()
+                + 5.0 * exp_dist(self.orientation_reward())
+                - 1.0 * exp_dist(self.body_height_cost())
+                - 0.5 * self.joint_posture_cost()
+                - 5.0 * self.ideal_position_cost()
+                - 2.0 * self.control_amplitude_cost()
+                - 2.0 * self.control_frequency_cost()
+                )
 
     def _default_reward(self):
         return self.input_control_reward()

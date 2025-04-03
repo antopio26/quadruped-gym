@@ -6,28 +6,37 @@ def exp_dist(x):
 
 
 class OnlineFrequencyAmplitudeEstimation:
-    def __init__(self, n_channels, window_size=64, dt=0.01, ema_alpha=0.95):
+    def __init__(self, n_channels, dt=0.01, ema_alpha=0.95, min_freq=None, window_size=None):
         """
         Parameters:
             n_channels (int): Number of parallel channels.
-            window_size (int): Maximum number of samples in the sliding window.
-            dt (float): Time step (seconds per sample). The window length is window_size * dt seconds.
+            dt (float): Time step (seconds per sample).
             ema_alpha (float): EMA smoothing factor (closer to 1 means more smoothing).
+            min_freq (float, optional): If provided, window_size is set to cover 2 cycles at this frequency.
+            window_size (int, optional): Override the window size. Ignored if max_freq is provided.
         """
         self.n_channels = n_channels
-        self.window_size = window_size
         self.dt = dt
         self.ema_alpha = ema_alpha
 
+        # Determine window size: if min_freq is provided, compute it based on 2 cycles.
+        if min_freq is not None:
+            # Window size = number of samples covering two periods of min_freq.
+            self.window_size = int(np.ceil(2 / (min_freq * dt)))
+        elif window_size is not None:
+            self.window_size = window_size
+        else:
+            # Default window size if neither is provided.
+            self.window_size = 64
+
         # Circular buffer for binary crossing events for each channel.
-        self.crossings_buffer = np.zeros((window_size, n_channels), dtype=int)
+        self.crossings_buffer = np.zeros((self.window_size, n_channels), dtype=int)
         # Circular buffer for raw signal samples (for amplitude estimation).
-        self.signal_buffer = np.zeros((window_size, n_channels))
+        self.signal_buffer = np.zeros((self.window_size, n_channels))
 
         self.buffer_index = 0
         self.crossings_count = np.zeros(n_channels, dtype=int)  # Running sum for each channel
-
-        # Count of samples processed so far (up to window_size)
+        # Count of samples processed so far (up to window_size).
         self.sample_count = 0
 
         # Previous sample and its derivative sign for each channel.
@@ -118,4 +127,15 @@ class OnlineFrequencyAmplitudeEstimation:
         # EMA smoothing for amplitude.
         self.a_est = self.ema_alpha * self.a_est + (1 - self.ema_alpha) * amplitude_current
 
+        return self.f_est.copy(), self.a_est.copy()
+
+    def get_estimates(self):
+        """
+        Get the current frequency and amplitude estimates.
+
+        Returns:
+            tuple: (f_est, a_est) where:
+                - f_est (np.array): EMA-smoothed frequency estimate (Hz) for each channel.
+                - a_est (np.array): EMA-smoothed amplitude estimate for each channel.
+        """
         return self.f_est.copy(), self.a_est.copy()
