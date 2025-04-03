@@ -214,8 +214,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         target = np.array(target_frequencies * 4, dtype=np.float32)
 
-        # Penalize large frequencies
-        return np.sum(np.square(self.ctrl_f_est - target))
+        return np.linalg.norm(self.ctrl_f_est - target) / 12
 
     def control_amplitude_cost(self, target_amplitudes = [1.0, 1.0, 0.0]):
         """
@@ -223,8 +222,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         target = np.array(target_amplitudes * 4, dtype=np.float32)
 
-        # Penalize large amplitudes
-        return np.sum(np.square(self.ctrl_a_est - target))
+        return np.linalg.norm(self.ctrl_a_est - target) / 12
 
     def alive_bonus(self):
         """
@@ -255,6 +253,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
     '''
 
     def input_control_reward(self):
+
         return (+ 1.0 * self.alive_bonus()
                 - 2.0 * self.control_cost()
                 + 10.0 * self.progress_direction_reward_local()
@@ -264,8 +263,8 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
                 - 1.0 * exp_dist(self.body_height_cost())
                 - 0.5 * self.joint_posture_cost()
                 - 5.0 * self.ideal_position_cost()
-                - 2.0 * self.control_amplitude_cost()
-                - 2.0 * self.control_frequency_cost()
+                - 1.0 * self.control_amplitude_cost()
+                - 1.0 * self.control_frequency_cost()
                 )
 
     def _default_reward(self):
