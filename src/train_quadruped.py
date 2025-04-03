@@ -19,7 +19,7 @@ def make_env(reset_options=None):
     return new_env
 
 if __name__ == '__main__':
-    output_folder = '../policies/po_v2_ppo_lip_freq_v0'
+    output_folder = '../policies/po_v2_ppo_lip_freq_v1'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots

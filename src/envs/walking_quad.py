@@ -208,7 +208,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Penalize large differences
         return np.sum(np.square(control_diff))
 
-    def control_frequency_cost(self, target_frequencies = [2.0, 2.0, 0.0]):
+    def control_frequency_cost(self, target_frequencies = [1.0, 1.0, 0.0]):
         """
         Reward for avoiding large control frequencies.
         """
@@ -216,7 +216,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
 
         return np.linalg.norm(self.ctrl_f_est - target) / 12
 
-    def control_amplitude_cost(self, target_amplitudes = [1.0, 1.0, 0.0]):
+    def control_amplitude_cost(self, target_amplitudes = [1.5, 0.5, 0.0]):
         """
         Reward for targeting a specific control amplitude.
         """
@@ -238,7 +238,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
     # NOTE: Maybe multiply some of the rewards
 
     '''
-    20 steps
+    20 steps - no
     def input_control_reward(self):
         return (+ 1.0 * self.alive_bonus()
                 - 2.0 * self.control_cost()
@@ -252,8 +252,9 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
                 )
     '''
 
+    '''
+    16 steps - no
     def input_control_reward(self):
-
         return (+ 1.0 * self.alive_bonus()
                 - 2.0 * self.control_cost()
                 + 10.0 * self.progress_direction_reward_local()
@@ -263,9 +264,27 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
                 - 1.0 * exp_dist(self.body_height_cost())
                 - 0.5 * self.joint_posture_cost()
                 - 5.0 * self.ideal_position_cost()
-                - 1.0 * self.control_amplitude_cost()
+                - 1.0 * self.control_amplitude_cost([1.0, 1.0, 0.0]])
                 - 1.0 * self.control_frequency_cost()
                 )
+    '''
+
+    def input_control_reward(self):
+        return (+ 1.0 * self.alive_bonus()
+                - 2.0 * self.control_cost()
+                + 10.0 * self.progress_direction_reward_local()
+                - 10.0 * self.progress_speed_cost_local()
+                + 5.0 * self.heading_reward()
+                + 5.0 * exp_dist(self.orientation_reward())
+                - 1.0 * exp_dist(self.body_height_cost())
+                - 0.5 * self.joint_posture_cost()
+                # - 5.0 * self.ideal_position_cost()
+                - 2.5 * self.control_amplitude_cost()
+                - 8.0 * self.control_frequency_cost()
+                )
+
+    # NOTE: I think rewards should judge an action, not a state so maybe
+    #       for some of these rewards we should consider the derivative
 
     def _default_reward(self):
         return self.input_control_reward()
