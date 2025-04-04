@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 from stable_baselines3 import PPO, SAC, TD3
+# from sb3_contrib import RecurrentPPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from envs.po_walking_quad import POWalkingQuadrupedEnv
@@ -41,17 +42,37 @@ if __name__ == '__main__':
     env = SubprocVecEnv([lambda: make_env(options) for _ in range(num_envs)])
 
     # Define the model
-    model = PPO("MlpPolicy", env)
+    model = PPO("MlpPolicy", env, device = "cuda") # RecurrentPPO("MlpLstmPolicy", env, device = "cuda")
 
     class RewardCallback(BaseCallback):
         def __init__(self, verbose=0):
-            super(RewardCallback, self).__init__(verbose)
-            self.rewards = []
-            self.std = []
+            super().__init__(verbose)
+            self.keys = [
+                'alive_bonus', 'control_cost', 'progress_direction_reward_local',
+                'progress_speed_cost_local', 'heading_reward', 'orientation_reward',
+                'body_height_cost', 'joint_posture_cost', 'ideal_position_cost',
+                'control_amplitude_cost', 'control_frequency_cost'
+            ]
+            self.data = {
+                'rewards': [],
+                'std': [],
+                'components': {key: [] for key in self.keys}
+            }
+            self.column_order = ['Training Steps'] + self.keys + ['Reward', 'Std', 'Condition']
 
         def _on_step(self) -> bool:
-            self.rewards.append(np.mean(self.locals["rewards"]))  # Get rewards from all envs
-            self.std.append(np.std(self.locals["rewards"]))  # Get std from all envs
+            infos = self.locals["infos"]
+            
+            current_components = {
+                key: np.mean([info[key] for info in infos]) 
+                for key in self.keys
+            }
+            
+            self.data['rewards'].append(np.mean(self.locals["rewards"]))
+            self.data['std'].append(np.std(self.locals["rewards"]))
+            for key in self.keys:
+                self.data['components'][key].append(current_components[key])
+            
             return True
 
     reward_callback = RewardCallback()
@@ -72,7 +93,7 @@ if __name__ == '__main__':
         start_step = 0
 
     # Train the model for n steps
-    num_steps = 20
+    num_steps = 100
 
     for i in range(start_step, start_step + num_steps):
         # Train the model
@@ -85,19 +106,25 @@ if __name__ == '__main__':
         with open(steps_filepath, 'w') as f:
             f.write(str(i + 1))
 
-        # Prepare data for plotting
-        data = pd.DataFrame({
-            'Training Steps': range(len(reward_callback.rewards)),
-            'Reward': reward_callback.rewards,
-            'Std': reward_callback.std,
-            'Condition1': 'Training'
+        steps = range(len(reward_callback.data['rewards']))
+        df = pd.DataFrame({
+            'Training Steps': steps,
+            'Condition': ['Training'] * len(steps),
+            'Reward': reward_callback.data['rewards'],
+            'Std': reward_callback.data['std']
         })
+        
+        components_df = pd.DataFrame(reward_callback.data['components'])
+        data =  pd.concat([df[['Training Steps', 'Condition']], 
+                        components_df, 
+                        df[['Reward', 'Std']]], axis=1)[reward_callback.column_order]
+
 
         # Save the dataframe
         data.to_csv(os.path.join(output_folder, f'logs/rewards_{i}.csv'), index=False)
 
         # Plot the rewards over training steps using plot_data
-        plot_data_line([data], xaxis='Training Steps', value='Reward', condition='Condition1', smooth=len(reward_callback.rewards)//100)
+        plot_data_line([data], xaxis='Training Steps', value='Reward', condition='Condition', smooth=len(reward_callback.data['rewards'])//100)
         plt.savefig(os.path.join(output_folder, f'plots/reward_plot_{i}.png'))
         plt.close()
 
