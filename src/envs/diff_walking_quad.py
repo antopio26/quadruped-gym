@@ -312,19 +312,19 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Should almost all derived rewards should be soft near the correct value ?!?
 
         value_rewards = np.array([
-            + 1.0 * self.alive_bonus(),
+            + 2.0 * self.alive_bonus(),
             - 1.0 * self.control_cost(),
         ])
         
         rewards_to_derive = np.array([
             # - 1.0 * self.control_cost(),
-            + 0.1 * self.progress_direction_reward_local(),         # 1
-            - 1.0 * self.progress_speed_cost_local(),               # 1 
-            + 1.0 * self.heading_reward(),                          # 1
-            + 1.0 * exp_dist(self.orientation_reward()),            # 1
+            + 0.5 * self.progress_direction_reward_local(),         # 1
+            - 2.0 * self.progress_speed_cost_local(),               # 1 
+            + 2.0 * self.heading_reward(),                          # 1
+            + 2.0 * exp_dist(self.orientation_reward()),            # 1
             - 5.0 * exp_dist(self.body_height_cost()),              # 1
             - 0.5 * self.joint_posture_cost(),                      # 1     
-            - 100.0 * self.ideal_position_cost()                    # 10
+            - 20.0 * self.ideal_position_cost()                     # 10
         ])
 
         # TODO: When do I apply the weights?

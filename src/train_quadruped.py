@@ -116,7 +116,7 @@ if __name__ == '__main__':
         start_step = 0
 
     # Train the model for n steps
-    num_steps = 100
+    num_steps = 50
 
     for i in range(start_step, start_step + num_steps):
         # Train the model
