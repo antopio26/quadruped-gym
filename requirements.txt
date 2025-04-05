@@ -8,3 +8,4 @@ sb3-contrib
 seaborn
 sbx-rl
 ahrs
+plotly
