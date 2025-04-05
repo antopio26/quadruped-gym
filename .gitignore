@@ -4,3 +4,4 @@ __pycache__/
 videos/
 policies/
 .DS_Store
+rewards_continuous.csv

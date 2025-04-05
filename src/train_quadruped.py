@@ -8,6 +8,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from envs.po_walking_quad import POWalkingQuadrupedEnv
 from utils.plot import plot_data_line, plot_reward_components
 import matplotlib.pyplot as plt
+import csv
 
 # Function to create a new environment instance
 def make_env(reset_options=None):
@@ -21,6 +22,8 @@ def make_env(reset_options=None):
 
 if __name__ == '__main__':
     output_folder = '../policies/po_v2_ppo_lip_freq_v2'
+
+
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -58,7 +61,19 @@ if __name__ == '__main__':
                 'std': [],
                 'components': {key: [] for key in self.keys}
             }
+            
             self.column_order = ['Training Steps'] + self.keys + ['Reward', 'Std', 'Condition']
+
+            self.real_time_column = ['Training Steps'] + self.keys + ['Reward']
+
+            self.step_counter = 0
+            self.csv_file = os.path.join('./rewards_continuous.csv')
+
+            if os.path.exists(self.csv_file):
+                os.remove(self.csv_file)
+            
+            with open(self.csv_file, 'w') as f:
+                f.write(','.join(self.real_time_column) + '\n')
 
         def _on_step(self) -> bool:
             infos = self.locals["infos"]
@@ -71,8 +86,18 @@ if __name__ == '__main__':
             self.data['rewards'].append(np.mean(self.locals["rewards"]))
             self.data['std'].append(np.std(self.locals["rewards"]))
             for key in self.keys:
-                self.data['components'][key].append(current_components[key])
-            
+                self.data['components'][key].append(current_components[key])            
+
+            row_data = {
+                'Training Steps': self.step_counter,
+                'Reward': self.data['rewards'][-1],
+            }
+            row_data.update(current_components)
+            self.step_counter += 1
+
+            with open(self.csv_file, 'a') as f:
+                writer = csv.DictWriter(f, fieldnames=self.real_time_column)
+                writer.writerow(row_data)
             return True
 
     reward_callback = RewardCallback()
@@ -97,7 +122,7 @@ if __name__ == '__main__':
 
     for i in range(start_step, start_step + num_steps):
         # Train the model
-        model.learn(total_timesteps=50_000, progress_bar=True, callback=reward_callback)
+        model.learn(total_timesteps=500_000, progress_bar=True, callback=reward_callback)
 
         # Save the model
         model.save(filepath)
