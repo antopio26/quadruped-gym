@@ -6,7 +6,7 @@ from stable_baselines3 import PPO, SAC, TD3
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from envs.po_walking_quad import POWalkingQuadrupedEnv
-from utils.plot import plot_data_line
+from utils.plot import plot_data_line, plot_reward_components
 import matplotlib.pyplot as plt
 
 # Function to create a new environment instance
@@ -20,7 +20,7 @@ def make_env(reset_options=None):
     return new_env
 
 if __name__ == '__main__':
-    output_folder = '../policies/po_v2_ppo_lip_freq_v1'
+    output_folder = '../policies/po_v2_ppo_lip_freq_v2'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     }
 
     # Create a vectorized environment with 10 parallel environments
-    num_envs = 10
+    num_envs = 50
     env = SubprocVecEnv([lambda: make_env(options) for _ in range(num_envs)])
 
     # Define the model
@@ -97,7 +97,7 @@ if __name__ == '__main__':
 
     for i in range(start_step, start_step + num_steps):
         # Train the model
-        model.learn(total_timesteps=500_000, progress_bar=True, callback=reward_callback)
+        model.learn(total_timesteps=50_000, progress_bar=True, callback=reward_callback)
 
         # Save the model
         model.save(filepath)
@@ -126,7 +126,10 @@ if __name__ == '__main__':
         # Plot the rewards over training steps using plot_data
         plot_data_line([data], xaxis='Training Steps', value='Reward', condition='Condition', smooth=len(reward_callback.data['rewards'])//100)
         plt.savefig(os.path.join(output_folder, f'plots/reward_plot_{i}.png'))
+
+        plot_reward_components(data, output=os.path.join(output_folder, f'plots/reward_components_plot_{i}.html'))
         plt.close()
+
 
         # Update video path
         new_video_path = os.path.join(output_folder, f'videos/run_{i}.mp4')

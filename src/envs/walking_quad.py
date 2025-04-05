@@ -43,6 +43,9 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Initialize previous control inputs
         self.previous_ctrl = np.zeros_like(self.data.ctrl)
 
+        # Initialize previous rewards to derive
+        # self.previous_rewards_to_derive = np.zeros(10, dtype=np.float32)        
+
         # Initialize frequency and amplitude estimator for actuation
         self.frequency_amplitude_estimator = OnlineFrequencyAmplitudeEstimation(
             n_channels = 12,
@@ -205,7 +208,9 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         return np.sum(np.square(self.data.ctrl - self.joint_centers))
 
-    def control_cost(self):
+    # TODO: Do not use the previous control input ad this reward will be derived
+    #       instead use the current control input
+    def control_cost(self): 
         """
         Reward for avoiding large control inputs.
         """
@@ -293,18 +298,54 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
             'control_frequency_cost'
         ]
 
-        values = [
+        # TODO: Research reward shaping
+        # TODO: Explore the possibility of combining reward derivatives with the current reward to improve the instant information
+
+        # To make the derived rewards softer they should be multiplied by the reward not derived
+        # (maybe not exactly but something like that)
+
+        # Should almost all derived rewards should be soft near the correct value ?!?
+
+        '''
+        value_rewards = [
             + 1.0 * self.alive_bonus(),
-            - 2.0 * self.control_cost(),
+            # - 2.0 * self.control_cost(),
+        ]
+
+        rewards_to_derive = [
+            - 2.0 * self.control_cost(),                        # TODO: Modify control cost to be a derivable reward
             + 10.0 * self.progress_direction_reward_local(),
             - 10.0 * self.progress_speed_cost_local(),
             + 5.0 * self.heading_reward(),
             + 5.0 * exp_dist(self.orientation_reward()),
             - 1.0 * exp_dist(self.body_height_cost()),
             - 0.5 * self.joint_posture_cost(),
-            - 0.0 * self.ideal_position_cost(),
-            - 2.5 * self.control_amplitude_cost(),
-            - 8.0 * self.control_frequency_cost()
+            - 0.0 * self.ideal_position_cost()
+        ]
+
+        # TODO: When do I apply the weights?
+
+        derived_rewards = (rewards_to_derive - self.previous_rewards_to_derive) / (self.model.opt.timestep * self.frame_skip)
+
+        self.previous_rewards_to_derive = rewards_to_derive
+
+        # Concatenate the rewards
+        values = np.concatenate((value_rewards, derived_rewards))
+
+        '''
+
+        values = [
+            + 1.0 * self.alive_bonus(),
+            - 2.0 * self.control_cost(),
+            + 10.0 * self.progress_direction_reward_local(),        # Derive
+            - 10.0 * self.progress_speed_cost_local(),              # Derive
+            + 5.0 * self.heading_reward(),                          # Derive
+            + 5.0 * exp_dist(self.orientation_reward()),            # Derive (this should be soft near the correct orientation)
+            - 1.0 * exp_dist(self.body_height_cost()),              # Derive (this should be soft near the correct height)
+            - 0.5 * self.joint_posture_cost(),                      # Derive
+            - 0.0 * self.ideal_position_cost(),                     # Derive
+            - 2.5 * self.control_amplitude_cost(),                  # Don't know how to hanldle this
+            - 3.0 * self.control_frequency_cost()                   # Don't know how to hanldle this
         ]
 
         # Create a dictionary of rewards

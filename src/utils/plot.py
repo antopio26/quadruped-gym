@@ -2,6 +2,7 @@ import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import plotly.graph_objects as go
 
 DIV_LINE_WIDTH = 50
 
@@ -63,8 +64,6 @@ def plot_data_line(data, xaxis='Epoch', value="AverageEpRet", std="Std", conditi
         plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
 
     plt.tight_layout(pad=0.5)
-
-
 
 def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1",
               smooth=1, bin_size=1, **kwargs):
@@ -145,3 +144,40 @@ def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1",
 
     plt.tight_layout(pad=0.5)
     plt.show()
+
+
+
+def plot_reward_components(data, output, exclude_cols=['Condition', 'Std', 'Training Steps', 'alive_bonus']):
+    columns_to_plot = [col for col in data.columns if col not in exclude_cols]
+
+    fig = go.Figure()
+
+    for col in columns_to_plot:
+        fig.add_trace(go.Scatter(
+            x=data['Training Steps'],
+            y=data[col],
+            mode='lines',
+            name=col
+        ))
+
+    fig.update_layout(
+        title='Componenti della Reward e Reward Totale',
+        xaxis_title='Training Steps',
+        yaxis_title='Reward',
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.15,   # posizione sopra il titolo
+            xanchor='center',
+            x=0.5
+        ),
+        margin=dict(t=100, b=40, l=50, r=30),
+        height=600,
+        template='plotly_white'
+    )
+
+    fig.write_html(output)  # salva come HTML interattivo
+
+
+
+

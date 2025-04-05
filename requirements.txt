@@ -4,6 +4,7 @@ mediapy
 gymnasium
 opencv-python
 stable-baselines3[extra]
+sb3-contrib
 seaborn
 sbx-rl
 ahrs
