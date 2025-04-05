@@ -20,7 +20,7 @@ def make_env(reset_options=None):
     return new_env
 
 if __name__ == '__main__':
-    output_folder = '../policies/po_v2_ppo_lip_freq_v2'
+    output_folder = '../policies/po_diff_ppo_v0'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     }
 
     # Create a vectorized environment with 10 parallel environments
-    num_envs = 50
+    num_envs = 10
     env = SubprocVecEnv([lambda: make_env(options) for _ in range(num_envs)])
 
     # Define the model
@@ -51,7 +51,7 @@ if __name__ == '__main__':
                 'alive_bonus', 'control_cost', 'progress_direction_reward_local',
                 'progress_speed_cost_local', 'heading_reward', 'orientation_reward',
                 'body_height_cost', 'joint_posture_cost', 'ideal_position_cost',
-                'control_amplitude_cost', 'control_frequency_cost'
+                # 'control_amplitude_cost', 'control_frequency_cost'
             ]
             self.data = {
                 'rewards': [],
@@ -97,7 +97,7 @@ if __name__ == '__main__':
 
     for i in range(start_step, start_step + num_steps):
         # Train the model
-        model.learn(total_timesteps=50_000, progress_bar=True, callback=reward_callback)
+        model.learn(total_timesteps=500_000, progress_bar=True, callback=reward_callback)
 
         # Save the model
         model.save(filepath)
