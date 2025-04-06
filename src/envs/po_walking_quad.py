@@ -25,7 +25,7 @@ class POWalkingQuadrupedEnv(WalkingQuadrupedEnv):
         obs_size += 3  # Add velocity and heading (vx, vy, theta)
         obs_size *= self.obs_window  # Account for stacking
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_size,), dtype=np.float32)
-
+        
     def _get_obs(self):
         """
         Obtain observation from the simulation.
