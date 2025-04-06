@@ -1,6 +1,6 @@
 import numpy as np
 
-from .walking_quad import WalkingQuadrupedEnv
+from .diff_walking_quad import WalkingQuadrupedEnv
 
 class DummyWalkingQuadrupedEnv(WalkingQuadrupedEnv):
 

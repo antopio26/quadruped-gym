@@ -307,6 +307,27 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
                 )
     '''
 
+    reward_keys = [
+            # 'alive_bonus',
+            # 'control_cost',
+            # 'progress_direction_reward_local',
+            # 'progress_speed_cost_local',
+            # 'heading_reward',
+            # 'orientation_reward',
+            # 'body_height_cost',
+            # 'joint_posture_cost',
+            # 'ideal_position_cost',
+            # 'control_amplitude_cost',
+            # 'control_frequency_cost',
+            # 'diff_progress_direction_reward_local',
+            # 'diff_progress_speed_cost_local',
+            # 'diff_heading_reward',
+            # 'diff_orientation_reward',
+            # 'diff_body_height_cost',
+            # 'diff_joint_posture_cost',
+            # 'diff_ideal_position_cost',
+    ]
+
     def input_control_reward(self):
 
         
@@ -387,24 +408,3 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
     def _default_reward(self):
         return self.input_control_reward()
     
-
-    reward_keys = [
-            'alive_bonus',
-            'control_cost',
-            'progress_direction_reward_local',
-            'progress_speed_cost_local',
-            'heading_reward',
-            'orientation_reward',
-            'body_height_cost',
-            'joint_posture_cost',
-            'ideal_position_cost',
-            'control_amplitude_cost',
-            'control_frequency_cost',
-            'diff_progress_direction_reward_local',
-        #   'diff_progress_speed_cost_local',
-            'diff_heading_reward',
-            'diff_orientation_reward',
-            'diff_body_height_cost',
-            'diff_joint_posture_cost',
-        #   'diff_ideal_position_cost',
-        ]
