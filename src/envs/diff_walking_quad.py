@@ -30,19 +30,19 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
 
         # Initialize control inputs
         self.control_inputs = VelocityHeadingControls()
-        self.ideal_position = np.array([0.0, 0.0, 0.0], dtype=np.float64) # TODO: Generalize
+        self.ideal_position = np.array([0.0, 0.0, 0.0], dtype=np.float32) # TODO: Generalize
 
         # Joint centers
         hip_center = 0.0
         knee_center = 0.0
         ankle_center = - 0.5
-        self.joint_centers = np.array([hip_center, knee_center, ankle_center] * 4, dtype=np.float64)
+        self.joint_centers = np.array([hip_center, knee_center, ankle_center] * 4, dtype=np.float32)
 
         # Settling time
         self.settling_time = settling_time
 
         # Initialize previous control inputs
-        self.previous_ctrl = np.zeros_like(self.data.ctrl)
+        self.previous_ctrl = self.joint_centers.copy()
 
         # Initialize previous rewards to derive
         self.previous_rewards_to_derive = None     
@@ -100,10 +100,13 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         self.ideal_position = np.array([0.0, 0.0, 0.0], dtype=np.float64)  # TODO: Generalize
 
         # Initialize previous control inputs
-        self.previous_ctrl = np.zeros_like(self.data.ctrl)
+        self.previous_ctrl = self.joint_centers.copy()
 
         # Initialize previous rewards to derive
         self.previous_rewards_to_derive = None 
+
+        # Reset the frequency and amplitude estimator
+        # self.frequency_amplitude_estimator.reset()
 
         # Initialize the robot state
         if self.random_init:
@@ -299,8 +302,15 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
             'body_height_cost',
             'joint_posture_cost',
             'ideal_position_cost',
-        #    'control_amplitude_cost',
-        #    'control_frequency_cost'
+            'control_amplitude_cost',
+            'control_frequency_cost',
+            'diff_progress_direction_reward_local',
+        #   'diff_progress_speed_cost_local',
+            'diff_heading_reward',
+            'diff_orientation_reward',
+            'diff_body_height_cost',
+            'diff_joint_posture_cost',
+        #   'diff_ideal_position_cost',
         ]
 
         # TODO: Research reward shaping
@@ -313,18 +323,26 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
 
         value_rewards = np.array([
             + 2.0 * self.alive_bonus(),
-            - 1.0 * self.control_cost(),
+            - 0.5 * self.control_cost(),
+            + 10.0 * self.progress_direction_reward_local(),    # remove ?
+            - 10.0 * self.progress_speed_cost_local(),          # remove ?
+            + 5.0 * self.heading_reward(),                      # remove ?
+            + 5.0 * exp_dist(self.orientation_reward()),        # remove ?
+            - 5.0 * exp_dist(self.body_height_cost()),          # remove ?
+            - 0.5 * self.joint_posture_cost(), 
+            - 0.5 * self.ideal_position_cost(),                 # remove ?
+            - 3.0 * self.control_amplitude_cost(),              # Don't know how to hanldle this
+            - 1.0 * self.control_frequency_cost()               # Don't know how to hanldle this
         ])
         
         rewards_to_derive = np.array([
-            # - 1.0 * self.control_cost(),
             + 0.5 * self.progress_direction_reward_local(),         # 1
-            - 2.0 * self.progress_speed_cost_local(),               # 1 
+        #   - 0.5 * self.progress_speed_cost_local(),               # 1 
             + 2.0 * self.heading_reward(),                          # 1
             + 2.0 * exp_dist(self.orientation_reward()),            # 1
             - 5.0 * exp_dist(self.body_height_cost()),              # 1
             - 0.5 * self.joint_posture_cost(),                      # 1     
-            - 20.0 * self.ideal_position_cost()                     # 10
+        #   - 20.0 * self.ideal_position_cost()                     # 10
         ])
 
         # TODO: When do I apply the weights?

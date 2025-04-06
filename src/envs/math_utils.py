@@ -128,6 +128,20 @@ class OnlineFrequencyAmplitudeEstimation:
         self.a_est = self.ema_alpha * self.a_est + (1 - self.ema_alpha) * amplitude_current
 
         return self.f_est.copy(), self.a_est.copy()
+    
+    def reset(self):
+        """
+        Reset the internal state of the estimator.
+        """
+        self.crossings_buffer.fill(0)
+        self.signal_buffer.fill(0)
+        self.buffer_index = 0
+        self.crossings_count.fill(0)
+        self.sample_count = 0
+        self.prev_sample = None
+        self.prev_deriv_sign = None
+        self.f_est.fill(0)
+        self.a_est.fill(0)
 
     def get_estimates(self):
         """

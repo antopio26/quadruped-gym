@@ -21,7 +21,7 @@ def make_env(reset_options=None):
     return new_env
 
 if __name__ == '__main__':
-    output_folder = '../policies/po_diff_ppo_v1'
+    output_folder = '../policies/po_mix_ppo_v1'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -49,10 +49,24 @@ if __name__ == '__main__':
         def __init__(self, verbose=0):
             super().__init__(verbose)
             self.keys = [
-                'alive_bonus', 'control_cost', 'progress_direction_reward_local',
-                'progress_speed_cost_local', 'heading_reward', 'orientation_reward',
-                'body_height_cost', 'joint_posture_cost', 'ideal_position_cost',
-                # 'control_amplitude_cost', 'control_frequency_cost'
+                'alive_bonus',
+                'control_cost',
+                'progress_direction_reward_local',
+                'progress_speed_cost_local',
+                'heading_reward',
+                'orientation_reward',
+                'body_height_cost',
+                'joint_posture_cost',
+                'ideal_position_cost',
+                'control_amplitude_cost',
+                'control_frequency_cost',
+                'diff_progress_direction_reward_local',
+            #   'diff_progress_speed_cost_local',
+                'diff_heading_reward',
+                'diff_orientation_reward',
+                'diff_body_height_cost',
+                'diff_joint_posture_cost',
+            #   'diff_ideal_position_cost',
             ]
             self.data = {
                 'rewards': [],
@@ -116,7 +130,7 @@ if __name__ == '__main__':
         start_step = 0
 
     # Train the model for n steps
-    num_steps = 50
+    num_steps = 25
 
     for i in range(start_step, start_step + num_steps):
         # Train the model
