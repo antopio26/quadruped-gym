@@ -58,6 +58,8 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
 
         self.info = {}
 
+        self.reward_keys  = WalkingQuadrupedEnv.reward_keys
+
     def initialize_robot_state(self):
         """
         Randomly initialize the heading of the frame and the joint angles of the robot.
@@ -284,19 +286,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
 
     def input_control_reward(self):
 
-        keys = [
-            'alive_bonus',
-            'control_cost',
-            'progress_direction_reward_local',
-            'progress_speed_cost_local',
-            'heading_reward',
-            'orientation_reward',
-            'body_height_cost',
-            'joint_posture_cost',
-            'ideal_position_cost',
-            'control_amplitude_cost',
-            'control_frequency_cost'
-        ]
+        
 
         # TODO: Research reward shaping
         # TODO: Explore the possibility of combining reward derivatives with the current reward to improve the instant information
@@ -349,7 +339,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         ]
 
         # Create a dictionary of rewards
-        self.info = {key: value for key, value in zip(keys, values)}
+        self.info = {key: value for key, value in zip(self.reward_keys , values)}
 
         # Sum all values
         return sum(values)
@@ -359,3 +349,18 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
 
     def _default_reward(self):
         return self.input_control_reward()
+    
+
+    reward_keys  = [
+            'alive_bonus',
+            'control_cost',
+            'progress_direction_reward_local',
+            'progress_speed_cost_local',
+            'heading_reward',
+            'orientation_reward',
+            'body_height_cost',
+            'joint_posture_cost',
+            'ideal_position_cost',
+            'control_amplitude_cost',
+            'control_frequency_cost'
+        ]

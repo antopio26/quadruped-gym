@@ -46,28 +46,9 @@ if __name__ == '__main__':
     model = PPO("MlpPolicy", env, device = "cuda") # RecurrentPPO("MlpLstmPolicy", env, device = "cuda")
 
     class RewardCallback(BaseCallback):
-        def __init__(self, verbose=0):
+        def __init__(self, keys ,verbose=0):
             super().__init__(verbose)
-            self.keys = [
-                'alive_bonus',
-                'control_cost',
-                'progress_direction_reward_local',
-                'progress_speed_cost_local',
-                'heading_reward',
-                'orientation_reward',
-                'body_height_cost',
-                'joint_posture_cost',
-                'ideal_position_cost',
-                'control_amplitude_cost',
-                'control_frequency_cost',
-                'diff_progress_direction_reward_local',
-            #   'diff_progress_speed_cost_local',
-                'diff_heading_reward',
-                'diff_orientation_reward',
-                'diff_body_height_cost',
-                'diff_joint_posture_cost',
-            #   'diff_ideal_position_cost',
-            ]
+            self.keys = keys
             self.data = {
                 'rewards': [],
                 'std': [],
@@ -111,8 +92,8 @@ if __name__ == '__main__':
                 writer = csv.DictWriter(f, fieldnames=self.real_time_column)
                 writer.writerow(row_data)
             return True
-
-    reward_callback = RewardCallback()
+    
+    reward_callback = RewardCallback(POWalkingQuadrupedEnv.reward_keys)
 
     filepath = os.path.join(output_folder, 'policy.zip')
     steps_filepath = os.path.join(output_folder, 'steps.txt')
