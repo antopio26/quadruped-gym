@@ -54,7 +54,7 @@ if __name__ == '__main__':
     model = PPO("MlpPolicy", env, policy_kwargs=policy_kwargs) # RecurrentPPO("MlpLstmPolicy", env, device = "cuda")
 
     class RewardCallback(BaseCallback):
-        def __init__(self, keys ,verbose=0):
+        def __init__(self, keys, real_time_flag = True ,verbose=0):
             super().__init__(verbose)
             self.keys = keys
             self.data = {
@@ -70,11 +70,14 @@ if __name__ == '__main__':
             self.step_counter = 0
             self.csv_file = os.path.join('./rewards_continuous.csv')
 
-            if os.path.exists(self.csv_file):
-                os.remove(self.csv_file)
-            
-            with open(self.csv_file, 'w') as f:
-                f.write(','.join(self.real_time_column) + '\n')
+            self.real_time_flag = real_time_flag
+
+            if self.real_time_flag:
+                if os.path.exists(self.csv_file):
+                    os.remove(self.csv_file)
+                
+                with open(self.csv_file, 'w') as f:
+                    f.write(','.join(self.real_time_column) + '\n')
 
         def _on_step(self) -> bool:
             infos = self.locals["infos"]
@@ -89,19 +92,20 @@ if __name__ == '__main__':
             for key in self.keys:
                 self.data['components'][key].append(current_components[key])            
 
-            row_data = {
-                'Training Steps': self.step_counter,
-                'Reward': self.data['rewards'][-1],
-            }
-            row_data.update(current_components)
-            self.step_counter += 1
+            if self.real_time_flag:
+                row_data = {
+                    'Training Steps': self.step_counter,
+                    'Reward': self.data['rewards'][-1],
+                }
+                row_data.update(current_components)
+                self.step_counter += 1
 
-            with open(self.csv_file, 'a') as f:
-                writer = csv.DictWriter(f, fieldnames=self.real_time_column)
-                writer.writerow(row_data)
+                with open(self.csv_file, 'a') as f:
+                    writer = csv.DictWriter(f, fieldnames=self.real_time_column)
+                    writer.writerow(row_data)
             return True
     
-    reward_callback = RewardCallback(POWalkingQuadrupedEnv.reward_keys)
+    reward_callback = RewardCallback(POWalkingQuadrupedEnv.reward_keys, real_time_flag=real_time_flag)
 
     filepath = os.path.join(output_folder, 'policy.zip')
     steps_filepath = os.path.join(output_folder, 'steps.txt')
@@ -153,7 +157,7 @@ if __name__ == '__main__':
         plot_data_line([data], xaxis='Training Steps', value='Reward', condition='Condition', smooth=len(reward_callback.data['rewards'])//100)
         plt.savefig(os.path.join(output_folder, f'plots/reward_plot_{i}.png'))
 
-        plot_reward_components(data, output=os.path.join(output_folder, f'plots/reward_components_plot_{i}.html'))
+        plot_reward_components(data, output=os.path.join(output_folder, f'plots/reward_components_plot.html'))
         plt.close()
 
 
