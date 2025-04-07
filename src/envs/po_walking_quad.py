@@ -21,7 +21,7 @@ class POWalkingQuadrupedEnv(WalkingQuadrupedEnv):
         # Redefine observation space to include control inputs and mask some original observations
         obs_size = 9 # Gyroscope (3) + Acceleration (3) + Euler angles for orientation (3)
         obs_size += 2 # Only x and y components of body_vel (optical flow)
-        obs_size += self.model.nu  # Add control inputs
+        obs_size += self.model.nu  # Add control inputs 12
         obs_size += 3  # Add velocity and heading (vx, vy, theta)
         obs_size *= self.obs_window  # Account for stacking
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_size,), dtype=np.float32)

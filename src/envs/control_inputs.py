@@ -111,6 +111,6 @@ class VelocityHeadingControls:
             speed = fixed_speed
         else:
             speed = np.random.uniform(min_speed, max_speed)
-
+            
         # Set velocity
         self.set_velocity_speed_alpha(speed, alpha)

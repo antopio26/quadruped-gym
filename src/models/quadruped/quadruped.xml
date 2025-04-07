@@ -59,7 +59,7 @@
     </default>
 
     <worldbody>
-        <body name="FRAME" pos="0.0 0.0 0.1" childclass="quadruped">
+        <body name="FRAME" pos="0.0 0.0 0.13" childclass="quadruped">
             <joint name="free_joint" type="free"/>
             <geom name="FRAME geom" class="frame"/>
             <geom name="hip_servo_1 geom" class="servo" group="1" pos="-0.0334 0.0163 -0.0046"/>

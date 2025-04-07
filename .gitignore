@@ -3,5 +3,5 @@ __pycache__/
 .virtual_documents/
 videos/
 policies/
-.DS_Store
+*/.DS_Store
 rewards_continuous.csv

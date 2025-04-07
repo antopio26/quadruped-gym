@@ -51,7 +51,8 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         self.frequency_amplitude_estimator = OnlineFrequencyAmplitudeEstimation(
             n_channels = 12,
             dt = self.model.opt.timestep * self.frame_skip,
-            min_freq = 1 # Hz
+            min_freq = 1, # Hz
+            ema_alpha = 0.80,
         )
 
         self.ctrl_f_est = np.zeros(12, dtype=np.float32)
@@ -172,21 +173,22 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         Reward for moving in the right direction (global velocity).
         """
-        return np.dot(self._get_vec3_sensor(self._body_linvel_idx), self.control_inputs.velocity)
+        return np.dot(self._get_vec3_sensor(self._body_linvel_idx)[:2], self.control_inputs.velocity[:2])
 
-    def progress_speed_reward_global(self, max_reward=1.0):
+    def progress_speed_reward_local(self):
         """
         Reward for moving with the right speed (global velocity).
         """
-        d = np.linalg.norm(self._get_vec3_sensor(self._body_linvel_idx)) - np.linalg.norm(self.control_inputs.velocity)
+        actual_vel = np.linalg.norm(self._get_vec3_sensor(self._body_linvel_idx)[:2])
+        input_vel = np.linalg.norm(self.control_inputs.velocity[:2])
 
-        return max_reward - np.square(d)
+        return actual_vel - np.square(input_vel - actual_vel)
 
     def progress_speed_cost_global(self):
         """
         Reward for moving with the right speed (global velocity).
         """
-        d = np.linalg.norm(self._get_vec3_sensor(self._body_linvel_idx)) - np.linalg.norm(self.control_inputs.velocity)
+        d = np.linalg.norm(self._get_vec3_sensor(self._body_linvel_idx)[:2]) - np.linalg.norm(self.control_inputs.velocity[:2])
 
         return np.square(d)
 
@@ -194,23 +196,34 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         Reward for moving in the right direction (local velocity).
         """
-        return np.dot(self._get_vec3_sensor(self._body_vel_idx), self.control_inputs.velocity)
+        return np.dot(self._get_vec3_sensor(self._body_vel_idx)[:2], self.control_inputs.velocity[:2])
 
-    def progress_speed_reward_local(self, max_reward=1.0):
+    def progress_speed_reward_local(self):
         """
         Reward for moving with the right speed (local velocity).
         """
-        d = np.linalg.norm(self._get_vec3_sensor(self._body_vel_idx)) - np.linalg.norm(self.control_inputs.velocity)
+        actual_vel = np.linalg.norm(self._get_vec3_sensor(self._body_vel_idx)[:2])
+        input_vel = np.linalg.norm(self.control_inputs.velocity[:2])
 
-        return max_reward - np.square(d)
+        return actual_vel - np.square(input_vel - actual_vel)
 
     def progress_speed_cost_local(self):
         """
         Reward for moving with the right speed (local velocity).
         """
-        d = np.linalg.norm(self._get_vec3_sensor(self._body_linvel_idx)) - np.linalg.norm(self.control_inputs.velocity)
+        d = np.linalg.norm(self._get_vec3_sensor(self._body_linvel_idx))[:2] - np.linalg.norm(self.control_inputs.velocity[:2])
 
         return np.square(d)
+    
+    ######### TEST ##########
+    def progress_cost_local(self):
+        """
+        Reward for moving with the right velocity (local velocity).
+        """
+        d = self._get_vec3_sensor(self._body_vel_idx)[:2] - self.control_inputs.velocity[:2]
+
+        return np.sum(np.square(d))
+    ######### TEST ##########
 
     def heading_reward(self):
         """
@@ -308,19 +321,18 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
     '''
 
     reward_keys = [
-            # 'alive_bonus',
-            # 'control_cost',
-            # 'progress_direction_reward_local',
-            # 'progress_speed_cost_local',
-            # 'heading_reward',
-            # 'orientation_reward',
-            # 'body_height_cost',
+            'alive_bonus',
+            'control_cost',
+            'progress_direction_reward_local * progress_speed_reward_local',
+            'heading_reward',
+            'orientation_reward',
+            'body_height_cost',
             # 'joint_posture_cost',
             # 'ideal_position_cost',
-            # 'control_amplitude_cost',
-            # 'control_frequency_cost',
+            'control_amplitude_cost',
+            'control_frequency_cost',
             # 'diff_progress_direction_reward_local',
-            # 'diff_progress_speed_cost_local',
+            # 'diff_progress_speed_reward_local',
             # 'diff_heading_reward',
             # 'diff_orientation_reward',
             # 'diff_body_height_cost',
@@ -329,8 +341,6 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
     ]
 
     def input_control_reward(self):
-
-        
 
         # TODO: Research reward shaping
         # TODO: Explore the possibility of combining reward derivatives with the current reward to improve the instant information
@@ -341,27 +351,26 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Should almost all derived rewards should be soft near the correct value ?!?
 
         value_rewards = np.array([
-            # + 2.0 * self.alive_bonus(),
-            # - 0.5 * self.control_cost(),
-            # + 10.0 * self.progress_direction_reward_local(),    # remove ?
-            # - 10.0 * self.progress_speed_cost_local(),          # remove ?
-            # + 5.0 * self.heading_reward(),                      # remove ?
-            # + 5.0 * exp_dist(self.orientation_reward()),        # remove ?
-            # - 5.0 * exp_dist(self.body_height_cost()),          # remove ?
-            # - 0.5 * self.joint_posture_cost(), 
+            + 5.0 * self.alive_bonus(),
+            - 5.0 * self.control_cost(),
+            + 25.0 * self.progress_direction_reward_local() * 15.0 * self.progress_speed_reward_local(),          # remove ?
+            + 2.0 * self.heading_reward(),                      # remove ?
+            + 2.0 * exp_dist(self.orientation_reward()),        # remove ?
+            - 50.0 * exp_dist(self.body_height_cost()),          # remove ?
+            # - 1.0 * self.joint_posture_cost(), 
             # - 0.5 * self.ideal_position_cost(),                 # remove ?
-            # - 3.0 * self.control_amplitude_cost(),              # Don't know how to hanldle this
-            # - 1.0 * self.control_frequency_cost()               # Don't know how to hanldle this
+            - 2.5 * self.control_amplitude_cost(),              # Don't know how to hanldle this
+            - 0.2 * self.control_frequency_cost()               # Don't know how to hanldle this
         ])
         
         rewards_to_derive = np.array([
-            # + 0.5 * self.progress_direction_reward_local(),         # 1
-            # - 0.5 * self.progress_speed_cost_local(),               # 1 
-            # + 2.0 * self.heading_reward(),                          # 1
+            # + 0.1 * self.progress_direction_reward_local(),         # 1
+            # + 0.1 * self.progress_speed_reward_local(),             # 1 
+            # + 0.1 * self.heading_reward(),                          # 1
             # + 2.0 * exp_dist(self.orientation_reward()),            # 1
             # - 5.0 * exp_dist(self.body_height_cost()),              # 1
             # - 0.5 * self.joint_posture_cost(),                      # 1     
-            # - 20.0 * self.ideal_position_cost()                     # 10
+            # - 5.0 * self.ideal_position_cost()                     # 10
         ])
 
         # TODO: When do I apply the weights?
