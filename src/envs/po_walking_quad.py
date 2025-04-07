@@ -3,7 +3,7 @@ from ahrs.filters import Madgwick
 from ahrs.common import Quaternion
 from gymnasium import spaces
 
-from .diff_walking_quad import WalkingQuadrupedEnv
+from .walking_quad import WalkingQuadrupedEnv
 
 class POWalkingQuadrupedEnv(WalkingQuadrupedEnv):
 
