@@ -197,9 +197,9 @@
         <!-- Accelerometer and gyroscope sensors for the body -->
 
         <!-- Indices 12, 13, 14 -->
-        <accelerometer site="FRAME" name="body_accel"/>
+        <accelerometer noise="0.01" site="FRAME" name="body_accel"/>
         <!-- Indices 15, 16, 17 -->
-        <gyro site="FRAME" name="body_gyro"/>
+        <gyro noise="0.01" site="FRAME" name="body_gyro"/>
 
         <!-- Position sensor for the body -->
 
@@ -213,6 +213,6 @@
         <framezaxis objtype="site" objname="FRAME" name="body_zaxis"/>
 
         <!-- Indices 30, 31, 32 -->
-        <velocimeter site="FRAME" name="body_vel"/>
+        <velocimeter noise="0.01" site="FRAME" name="body_vel"/>
     </sensor>
 </mujoco>

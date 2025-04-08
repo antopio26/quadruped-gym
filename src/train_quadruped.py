@@ -15,18 +15,20 @@ import torch
 def make_env(reset_options=None):
     new_env = POWalkingQuadrupedEnv(
         max_time=20,
-        obs_window=5,
+        frame_skip=10,
+        obs_window=10,
         random_controls=True,
         reset_options=reset_options
     )
 
     # Set the random seed for reproducibility
-    new_env.seed(10)
+    # new_env.seed(10)
 
     return new_env
 
 if __name__ == '__main__':
-    output_folder = '../policies/po_minimal_omni_ppo_v2'
+    real_time_flag = True
+    output_folder = '../policies/po_10_ppo_v0'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -39,7 +41,7 @@ if __name__ == '__main__':
         # 'min_speed': 0.0,
         # 'max_speed': 0.4,
         'fixed_heading_angle': 0.0,
-        'fixed_velocity_angle': None,
+        'fixed_velocity_angle': 0.0,
         'fixed_speed': 0.3
     }
 
@@ -47,11 +49,8 @@ if __name__ == '__main__':
     num_envs = 10
     env = SubprocVecEnv([lambda: make_env(options) for _ in range(num_envs)])
 
-    policy_kwargs = dict(activation_fn=torch.nn.Tanh,
-                     net_arch=dict(pi=[256, 128, 64], vf=[256, 128, 64]))
-
     # Define the model
-    model = PPO("MlpPolicy", env, policy_kwargs=policy_kwargs) # RecurrentPPO("MlpLstmPolicy", env, device = "cuda")
+    model = PPO("MlpPolicy", env) # RecurrentPPO("MlpLstmPolicy", env, device = "cuda")
 
     class RewardCallback(BaseCallback):
         def __init__(self, keys, real_time_flag = True ,verbose=0):
@@ -123,7 +122,7 @@ if __name__ == '__main__':
         start_step = 0
 
     # Train the model for n steps
-    num_steps = 50
+    num_steps = 20
 
     for i in range(start_step, start_step + num_steps):
         # Train the model
@@ -169,7 +168,8 @@ if __name__ == '__main__':
             render_mode="human",
             save_video=True,
             video_path=new_video_path,
-            obs_window=5,
+            frame_skip=10,
+            obs_window=10,
             random_controls=True,
             reset_options=options
         )

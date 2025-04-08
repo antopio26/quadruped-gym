@@ -4,6 +4,9 @@ import numpy as np
 def exp_dist(x):
     return np.exp(x) - 1
 
+def unit(x):
+    return x / np.linalg.norm(x)
+
 
 class OnlineFrequencyAmplitudeEstimation:
     def __init__(self, n_channels, dt=0.01, ema_alpha=0.95, min_freq=None, window_size=None):

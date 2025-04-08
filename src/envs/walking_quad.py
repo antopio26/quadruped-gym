@@ -3,7 +3,7 @@ from mujoco import mj_name2id, mjtObj
 
 from .quadruped import QuadrupedEnv
 from .control_inputs import VelocityHeadingControls
-from .math_utils import exp_dist, OnlineFrequencyAmplitudeEstimation
+from .math_utils import exp_dist, unit, OnlineFrequencyAmplitudeEstimation
 
 
 class WalkingQuadrupedEnv(QuadrupedEnv):
@@ -173,7 +173,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         Reward for moving in the right direction (global velocity).
         """
-        return np.dot(self._get_vec3_sensor(self._body_linvel_idx)[:2], self.control_inputs.velocity[:2])
+        return np.dot(unit(self._get_vec3_sensor(self._body_linvel_idx)[:2]), unit(self.control_inputs.velocity[:2]))
 
     def progress_speed_reward_local(self):
         """
@@ -196,7 +196,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         Reward for moving in the right direction (local velocity).
         """
-        return np.dot(self._get_vec3_sensor(self._body_vel_idx)[:2], self.control_inputs.velocity[:2])
+        return np.dot(unit(self._get_vec3_sensor(self._body_vel_idx)[:2]), unit(self.control_inputs.velocity[:2]))
 
     def progress_speed_reward_local(self):
         """
@@ -211,7 +211,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         Reward for moving with the right speed (local velocity).
         """
-        d = np.linalg.norm(self._get_vec3_sensor(self._body_linvel_idx))[:2] - np.linalg.norm(self.control_inputs.velocity[:2])
+        d = np.linalg.norm(self._get_vec3_sensor(self._body_vel_idx)[:2]) - np.linalg.norm(self.control_inputs.velocity[:2])
 
         return np.square(d)
     
@@ -249,7 +249,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         return np.linalg.norm((self.data.ctrl - self.joint_centers) / self.model.nu)
 
-    def control_cost(self): 
+    def control_cost(self):
         """
         Reward for avoiding large control inputs.
         """
@@ -258,7 +258,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Update previous control inputs
         self.previous_ctrl = np.copy(self.data.ctrl)
         # Penalize large differences
-        return np.linalg.norm(control_diff / self.model.nu)
+        return np.sum(np.square(control_diff))
 
     def control_frequency_cost(self, target_frequencies = [1.0, 1.0, 0.0]):
         """
@@ -272,7 +272,6 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         Reward for targeting a specific control amplitude.
         """
         target = np.array(target_amplitudes * 4, dtype=np.float32)
-
         return np.linalg.norm((self.ctrl_a_est - target) / self.model.nu)
 
     def alive_bonus(self):
@@ -323,12 +322,13 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
     reward_keys = [
             'alive_bonus',
             'control_cost',
-            'progress_direction_reward_local * progress_speed_reward_local',
+            'progress_direction_reward_local',
+            'progress_speed_cost_local',
             'heading_reward',
             'orientation_reward',
             'body_height_cost',
-            # 'joint_posture_cost',
-            # 'ideal_position_cost',
+            'joint_posture_cost',
+            # 'ideal_position_cost',
             'control_amplitude_cost',
             'control_frequency_cost',
             # 'diff_progress_direction_reward_local',
@@ -337,7 +337,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
             # 'diff_orientation_reward',
             # 'diff_body_height_cost',
             # 'diff_joint_posture_cost',
-            # 'diff_ideal_position_cost',
+            'diff_ideal_position_cost',
     ]
 
     def input_control_reward(self):
@@ -351,16 +351,17 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Should almost all derived rewards should be soft near the correct value ?!?
 
         value_rewards = np.array([
-            + 5.0 * self.alive_bonus(),
-            - 5.0 * self.control_cost(),
-            + 25.0 * self.progress_direction_reward_local() * 15.0 * self.progress_speed_reward_local(),          # remove ?
-            + 2.0 * self.heading_reward(),                      # remove ?
-            + 2.0 * exp_dist(self.orientation_reward()),        # remove ?
-            - 50.0 * exp_dist(self.body_height_cost()),          # remove ?
-            # - 1.0 * self.joint_posture_cost(), 
-            # - 0.5 * self.ideal_position_cost(),                 # remove ?
-            - 2.5 * self.control_amplitude_cost(),              # Don't know how to hanldle this
-            - 0.2 * self.control_frequency_cost()               # Don't know how to hanldle this
+            + 10.0 * self.alive_bonus(),
+            - 2.0 * self.control_cost(),
+            + 10.0 * self.progress_direction_reward_local(),
+            - 50.0 * self.progress_speed_cost_local(),
+            + 10.0 * self.heading_reward(),
+            + 10.0 * exp_dist(self.orientation_reward()),
+            - 10.0 * exp_dist(self.body_height_cost()),
+            - 1,0 * self.joint_posture_cost(),
+            # - 5.0 * self.ideal_position_cost(),
+            - 2.5 * self.control_amplitude_cost(),
+            - 8.0 * self.control_frequency_cost()
         ])
         
         rewards_to_derive = np.array([
@@ -370,7 +371,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
             # + 2.0 * exp_dist(self.orientation_reward()),            # 1
             # - 5.0 * exp_dist(self.body_height_cost()),              # 1
             # - 0.5 * self.joint_posture_cost(),                      # 1     
-            # - 5.0 * self.ideal_position_cost()                     # 10
+            - 20.0 * self.ideal_position_cost()                       # 10
         ])
 
         # TODO: When do I apply the weights?
