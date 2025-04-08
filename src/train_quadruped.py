@@ -28,7 +28,7 @@ def make_env(reset_options=None):
 
 if __name__ == '__main__':
     real_time_flag = True
-    output_folder = '../policies/po_10_ppo_v0'
+    output_folder = '../policies/po_10_ppo_v2'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -49,8 +49,13 @@ if __name__ == '__main__':
     num_envs = 10
     env = SubprocVecEnv([lambda: make_env(options) for _ in range(num_envs)])
 
+    custom_policy = {
+        'net_arch': [256, 256, 128],
+        'activation_fn': torch.nn.Tanh,
+    }
+
     # Define the model
-    model = PPO("MlpPolicy", env) # RecurrentPPO("MlpLstmPolicy", env, device = "cuda")
+    model = PPO("MlpPolicy", env, policy_kwargs=custom_policy) # RecurrentPPO("MlpLstmPolicy", env, device = "cuda")
 
     class RewardCallback(BaseCallback):
         def __init__(self, keys, real_time_flag = True ,verbose=0):

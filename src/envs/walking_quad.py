@@ -47,6 +47,9 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Initialize previous rewards to derive
         self.previous_rewards_to_derive = None     
 
+        # Initialize rewards for smoothing
+        self.previous_ctrl_cost = None
+
         # Initialize frequency and amplitude estimator for actuation
         self.frequency_amplitude_estimator = OnlineFrequencyAmplitudeEstimation(
             n_channels = 12,
@@ -249,7 +252,7 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         """
         return np.linalg.norm((self.data.ctrl - self.joint_centers) / self.model.nu)
 
-    def control_cost(self):
+    def control_cost(self, alpha=0.8):
         """
         Reward for avoiding large control inputs.
         """
@@ -258,7 +261,13 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
         # Update previous control inputs
         self.previous_ctrl = np.copy(self.data.ctrl)
         # Penalize large differences
-        return np.sum(np.square(control_diff))
+        cost = np.sum(np.square(control_diff))
+
+        if self.previous_ctrl_cost is None:
+            # Initialize the previous control cost
+            self.previous_ctrl_cost = cost
+
+        return alpha * self.previous_ctrl_cost + (1 - alpha) * cost
 
     def control_frequency_cost(self, target_frequencies = [1.0, 1.0, 0.0]):
         """
@@ -355,10 +364,10 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
             - 2.0 * self.control_cost(),
             + 10.0 * self.progress_direction_reward_local(),
             - 50.0 * self.progress_speed_cost_local(),
-            + 10.0 * self.heading_reward(),
+            + 10.0 * exp_dist(self.heading_reward()),
             + 10.0 * exp_dist(self.orientation_reward()),
-            - 10.0 * exp_dist(self.body_height_cost()),
-            - 1,0 * self.joint_posture_cost(),
+            - 50.0 * exp_dist(self.body_height_cost(0.13)),
+            - 1.0 * self.joint_posture_cost(),
             # - 5.0 * self.ideal_position_cost(),
             - 2.5 * self.control_amplitude_cost(),
             - 8.0 * self.control_frequency_cost()
