@@ -5,6 +5,9 @@ import mujoco
 import gymnasium as gym
 from gymnasium import spaces
 import cv2
+import mujoco.viewer
+
+from ..controls.base_controls import BaseControls
 
 class QuadrupedEnv(gym.Env):
     """
@@ -40,7 +43,7 @@ class QuadrupedEnv(gym.Env):
     def __init__(self,
                  model_path: str = "./models/quadruped/scene.xml",
                  max_time: float = 10.0,
-                 frame_skip: int = 4,
+                 frame_skip: int = 16,
                  render_mode: str = None,
                  width: int = 720,
                  height: int = 480,
@@ -49,7 +52,8 @@ class QuadrupedEnv(gym.Env):
                  termination_fns: dict = None,
                  save_video: bool = False,
                  video_path: str = "videos/simulation.mp4",
-                 use_default_termination: bool = True):
+                 use_default_termination: bool = True,
+                 reset_options=None):
         super().__init__()
         self.model_path = model_path
         if not os.path.exists(self.model_path):
@@ -66,8 +70,8 @@ class QuadrupedEnv(gym.Env):
         self.height = height
         self.render_fps = render_fps
         self.renderer = None  # Created on first render call.
+        self.viewer = None  # MuJoCo viewer for human rendering.
         self._sim_start_time = None  # Wall-clock time when simulation starts.
-        # Internal simulation-time trackers for rendering/video.
         self._frame_count = 0
 
         # Update metadata with the render fps.
@@ -86,6 +90,25 @@ class QuadrupedEnv(gym.Env):
         self.scene_option.frame = mujoco.mjtFrame.mjFRAME_SITE
         self.scene_option.geomgroup[:] = 1  # Enable all geom groups.
 
+        self._get_sensor_idx = lambda name: self.model.sensor_adr[mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, name)]
+        self._get_vec3_sensor = lambda idx: self.data.sensordata[idx: idx + 3]
+
+        # Get sensor indices
+        self._body_accel_idx = self._get_sensor_idx("body_accel")
+        self._body_gyro_idx = self._get_sensor_idx("body_gyro")
+        self._body_vel_idx = self._get_sensor_idx("body_vel")
+        self._body_pos_idx = self._get_sensor_idx("body_pos")
+        self._body_quad_idx = self._get_sensor_idx("body_quad")
+        self._body_linvel_idx = self._get_sensor_idx("body_linvel")
+        self._body_xaxis_idx = self._get_sensor_idx("body_xaxis")
+        self._body_zaxis_idx = self._get_sensor_idx("body_zaxis")
+
+        # External control inputs (e.g., from a controller).
+        self.control_inputs = None
+
+        # Reset options for the environment.
+        self.reset_options = reset_options
+
         # Define the action space: one actuator per joint (12 actuators assumed).
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.model.nu,), dtype=np.float32)
 
@@ -96,6 +119,8 @@ class QuadrupedEnv(gym.Env):
         # Set up modular reward and termination functions.
         self.reward_fns = reward_fns if reward_fns is not None else {"default": self._default_reward}
         self.termination_fns = termination_fns if termination_fns is not None else {}
+
+        # Add default termination function if requested.
         if use_default_termination:
             self.termination_fns["default"] = self._default_termination
 
@@ -106,37 +131,163 @@ class QuadrupedEnv(gym.Env):
 
         # Seed and initial simulation reset.
         self.seed()
-        # self.reset()
+        self.reset()
 
     def seed(self, seed=None):
         np.random.seed(seed)
         return [seed]
+
+    def _randomize_initial_state(self):
+        """
+        Randomly initialize orientation, joint angles, and set respective controls.
+        Assumes the standard quadruped structure from quadruped.xml:
+        - Free joint (pos + quat)
+        - 12 actuated joints (hip, knee, ankle for each of the 4 legs)
+        """
+
+        # --- Orientation and Base Velocity Initialization ---
+        # Set initial position (e.g., slightly above the ground)
+        # You might want to randomize this within a certain area too.
+        self.data.qpos[0:3] = [0, 0, 0.25] # Start higher to avoid initial ground contact issues with random orientation
+
+        # Generate a random unit quaternion for arbitrary orientation
+        # Method: Generate 4 random numbers from N(0,1), then normalize.
+        random_quat = np.random.randn(4)
+        random_quat /= np.linalg.norm(random_quat)
+        # Ensure the scalar component (w) is positive if needed, though MuJoCo handles both q and -q as the same rotation.
+        # if random_quat[0] < 0:
+        #     random_quat *= -1
+        self.data.qpos[3:7] = random_quat # Initial orientation (w, x, y, z quaternion)
+
+        # Randomly set initial linear and angular velocities for the base
+        self.data.qvel[0:3] = np.random.uniform(-0.1, 0.1, size=(3,)) # Linear velocity
+        self.data.qvel[3:6] = np.random.uniform(-0.1, 0.1, size=(3,)) # Angular velocity
+
+        # --- Joint Angle and Control Initialization ---
+
+        # Define joint limits (radians) and control ranges based on quadruped.xml
+        # Note: XML ranges are in degrees, converted here to radians.
+        joint_limits_rad = {
+            # <default class="hip"> range="-45 45"
+            'hip':   (np.deg2rad(-45), np.deg2rad(45)),
+            # <default class="knee"> range="-45 120"
+            'knee':  (np.deg2rad(-45), np.deg2rad(120)),
+            # <default class="ankle"> range="-90 90"
+            'ankle': (np.deg2rad(-90), np.deg2rad(90))
+        }
+        control_ranges = {
+             # <default class="hip"> ctrlrange="-0.5 0.5"
+            'hip':   (-0.5, 0.5),
+             # <default class="knee"> ctrlrange="-0.91 0.91"
+            'knee':  (-0.91, 0.91),
+             # <default class="ankle"> ctrlrange="-1 1"
+            'ankle': (-1.0, 1.0)
+        }
+        # Order of joints corresponds to the XML structure and actuator order
+        joint_order = ['hip', 'knee', 'ankle'] * 4 # 4 legs
+
+        num_actuated_joints = self.model.nu # Should be 12
+        qpos_start_idx = 7 # qpos index after free joint (3 pos + 4 quat)
+        qvel_start_idx = 6 # qvel index after free joint (3 lin_vel + 3 ang_vel)
+
+        random_angles_rad = np.zeros(num_actuated_joints)
+        control_values = np.zeros(num_actuated_joints)
+
+        # Iterate through each actuated joint
+        for i in range(num_actuated_joints):
+            joint_type = joint_order[i]
+            min_rad, max_rad = joint_limits_rad[joint_type]
+            ctrl_min, ctrl_max = control_ranges[joint_type]
+
+            # 1. Generate random angle within joint limits
+            angle_rad = np.random.uniform(min_rad, max_rad)
+            random_angles_rad[i] = angle_rad
+
+            # 2. Map the target angle (qpos) to the corresponding control value
+            joint_range_rad = max_rad - min_rad
+            if abs(joint_range_rad) > 1e-6: # Avoid division by zero
+                 norm_pos = (angle_rad - min_rad) / joint_range_rad
+            else:
+                 norm_pos = 0.5 # Midpoint
+
+            ctrl_range = ctrl_max - ctrl_min
+            ctrl_val = ctrl_min + norm_pos * ctrl_range
+
+            # Clip control value
+            control_values[i] = np.clip(ctrl_val, ctrl_min, ctrl_max)
+
+        # Set the initial joint positions (qpos)
+        self.data.qpos[qpos_start_idx : qpos_start_idx + num_actuated_joints] = random_angles_rad
+
+        # Set the initial joint velocities (qvel)
+        self.data.qvel[qvel_start_idx : qvel_start_idx + num_actuated_joints] = np.random.uniform(-0.1, 0.1, size=num_actuated_joints) # Or just zeros
+
+        # Set the initial control signals (ctrl)
+        self.data.ctrl[:] = control_values
+
+        # Ensure the simulation state reflects these initial values
+        mujoco.mj_forward(self.model, self.data)
+
 
     def reset(self, seed=None, options=None):
         """
         Reset the simulation to an initial state and return the initial observation.
         Also resets the wall-clock timer for real-time synchronization in human mode.
         """
+        # Seed if necessary
+        if seed is not None:
+            self.seed(seed) # Assuming you have a seed method
+
+        if options is None:
+            options = self.reset_options
+
+        # Reset MuJoCo data structures to defaults
         mujoco.mj_resetData(self.model, self.data)
+
+        # Apply the custom random initialization
+        if options and options.get("randomize_initial_state", False):
+            self._randomize_initial_state()
+
+        # Reset simulation time
         self.data.time = 0.0
 
-        # Set a default control (customize as needed).
-        self.data.ctrl[:] = np.array([0, 0, -0.5] * 4)
+        # Apply random external controls if specified (assuming self.control_inputs exists)
+        if self.control_inputs is not None and options and options.get("control_inputs"):
+            self.control_inputs.sample(options=options["control_inputs"])
 
-        # Reset simulation-time trackers.
+        # Reset simulation-time trackers
         self._frame_count = 0
 
-        # Set the wall-clock start time if running in human mode.
+        # Set the wall-clock start time if running in human mode
         if self.render_mode == "human":
             self._sim_start_time = time.time()
+            # Open the viewer passively if not already open
+            if self.viewer is None:
+                try:
+                    self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
+                    # Apply camera settings from self.camera to the viewer
+                    self.viewer.cam.distance = self.camera.distance
+                    self.viewer.cam.elevation = self.camera.elevation
+                    self.viewer.cam.azimuth = self.camera.azimuth
+                    self.viewer.cam.lookat[:] = self.data.qpos[:3] # Initial lookat
+                except Exception as e:
+                    print(f"Could not launch MuJoCo viewer: {e}")
+                    self.viewer = None
+            elif self.viewer.is_running():
+                 self.viewer.sync()
 
-        # Initialize video writer if saving video.
+
+        # Initialize video writer if saving video
         if self.save_video and self.video_writer is None:
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(self.video_path), exist_ok=True)
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             self.video_writer = cv2.VideoWriter(self.video_path, fourcc, self.render_fps, (self.width, self.height))
 
         observation = self._get_obs()
-        return observation, {}
+        info = {} # Standard Gymnasium practice
+
+        return observation, info
 
     def _get_obs(self):
         """Obtain observation from the simulation."""
@@ -176,7 +327,7 @@ class QuadrupedEnv(gym.Env):
 
         # Check termination conditions.
         terminated = any(fn() for fn in self.termination_fns.values())
-        truncated = False  # Additional truncation conditions can be added if needed.
+        truncated = self._default_termination()  # Additional truncation conditions can be added if needed.
 
         info = {"time": self.data.time, "reward_components": reward_info}
         return observation, total_reward, terminated, truncated, info
@@ -247,6 +398,13 @@ class QuadrupedEnv(gym.Env):
         # Set the camera position and orientation
         self.camera.lookat[:] = robot_pos
 
+        """
+        if self.viewer is not None:
+            self.viewer.cam.lookat[0] = self.camera.lookat[0]
+            self.viewer.cam.lookat[1] = self.camera.lookat[1]
+            self.viewer.cam.lookat[2] = self.camera.lookat[2]
+        """
+    
     def render(self):
         """
         Render the simulation only when needed based on simulation time and the desired frame rate.
@@ -254,8 +412,7 @@ class QuadrupedEnv(gym.Env):
         Behavior for all modes:
           - A new frame is rendered only if simulation time has advanced by at least (1/render_fps) seconds.
           - The frame is then processed (saved to video if enabled and/or returned as an array).
-          - In "human" mode, the method waits the residual wall-clock time so that the displayed frame
-            appears at real-time speed before showing it.
+          - In "human" mode, the MuJoCo viewer is used for visualization.
         """
         if self.render_mode is None:
             return None
@@ -282,10 +439,10 @@ class QuadrupedEnv(gym.Env):
 
         # Render the frame and convert to BGR format for OpenCV.
         pixels = self.renderer.render()
-        pixels_bgr = cv2.cvtColor(pixels, cv2.COLOR_RGB2BGR)
-
+        
         # Save frame to video if enabled.
         if self.save_video and self.video_writer is not None:
+            pixels_bgr = cv2.cvtColor(pixels, cv2.COLOR_RGB2BGR)
             self.video_writer.write(pixels_bgr)
 
         # Mode-specific handling.
@@ -296,21 +453,39 @@ class QuadrupedEnv(gym.Env):
             # Wait until wall-clock time catches up to simulation time.
             if self._sim_start_time is None:
                 self._sim_start_time = time.time()
+            
             desired_wall_time = self._sim_start_time + self.data.time
             current_wall_time = time.time()
             wait_time = desired_wall_time - current_wall_time
+
             if wait_time > 0:
                 time.sleep(wait_time)
-            cv2.imshow("Simulation", pixels_bgr)
-            cv2.waitKey(1)
+
+                # Sync the viewer with the simulation.
+                self.viewer.sync()
+
+                if self.viewer.is_running() == False:
+                    print("Viewer stopped by the user")
+                    self.viewer.close()
+                    self.viewer = None
+
             return None
+        
+    def set_external_control(self, control_inputs: BaseControls):
+        """Set external control inputs."""
+        self.control_inputs = control_inputs
+        
 
     def close(self):
-        """Clean up resources such as the renderer, video writer, and OpenCV windows."""
+        """Clean up resources such as the renderer, video writer, mujoco viewer."""
         if self.renderer is not None:
             self.renderer.close()
             self.renderer = None
+
         if self.video_writer is not None:
             self.video_writer.release()
             self.video_writer = None
-        cv2.destroyAllWindows()
+        
+        if self.viewer is not None:
+            self.viewer.close()
+            self.viewer = None

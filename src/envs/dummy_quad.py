@@ -1,11 +1,11 @@
 import numpy as np
 
-from .diff_walking_quad import WalkingQuadrupedEnv
-
-class DummyWalkingQuadrupedEnv(WalkingQuadrupedEnv):
+from .base_quad import QuadrupedEnv
+ 
+class DummyQuadrupedEnv(QuadrupedEnv):
 
     def __init__(self, **kwargs):
-        super(DummyWalkingQuadrupedEnv, self).__init__(**kwargs)
+        super(DummyQuadrupedEnv, self).__init__(**kwargs)
 
     ## DUMMY REWARDS ##
     def forward_reward(self):

@@ -200,19 +200,22 @@
         <accelerometer noise="0.01" site="FRAME" name="body_accel"/>
         <!-- Indices 15, 16, 17 -->
         <gyro noise="0.01" site="FRAME" name="body_gyro"/>
+        <!-- Indices 18, 19, 20 -->
+        <velocimeter noise="0.01" site="FRAME" name="body_vel"/>
 
         <!-- Position sensor for the body -->
 
-        <!-- Indices 18, 19, 20 -->
-        <framepos objtype="site" objname="FRAME" name="body_pos"/>
         <!-- Indices 21, 22, 23 -->
+        <framepos objtype="site" objname="FRAME" name="body_pos"/>
+         <!-- Indices 24, 25, 26, 27 -->
+        <framequat objtype="site" objname="FRAME" name="body_quat"/>
+        <!-- Indices 28, 29, 30 -->
         <framelinvel objtype="site" objname="FRAME" name="body_linvel"/>
-        <!-- Indices 24, 25, 26 -->
+        <!-- Indices 31, 32, 33 -->
         <framexaxis objtype="site" objname="FRAME" name="body_xaxis"/>
-        <!-- Indices 27, 28, 29 -->
+        <!-- Indices 34, 35, 36 -->
         <framezaxis objtype="site" objname="FRAME" name="body_zaxis"/>
 
-        <!-- Indices 30, 31, 32 -->
-        <velocimeter noise="0.01" site="FRAME" name="body_vel"/>
+
     </sensor>
 </mujoco>

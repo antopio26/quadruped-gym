@@ -1,6 +1,6 @@
 import numpy as np
 from stable_baselines3 import PPO
-from envs.po_walking_quad import POWalkingQuadrupedEnv
+from src.envs.po_quad import POWalkingQuadrupedEnv
 import matplotlib.pyplot as plt
 
 

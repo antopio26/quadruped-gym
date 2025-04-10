@@ -1,6 +1,8 @@
 import numpy as np
 
-class VelocityHeadingControls:
+from .base_controls import BaseControls
+
+class VelocityHeadingControls(BaseControls):
     """
     Class to manage high-level control inputs for a quadruped robot.
     Maintains velocity, heading, and computes a global_velocity as a rotated 3D vector (z=0).
@@ -114,3 +116,9 @@ class VelocityHeadingControls:
 
         # Set velocity
         self.set_velocity_speed_alpha(speed, alpha)
+    
+    def get_obs(self):
+        return np.concatenate([
+            self.velocity,
+            self.heading
+        ])

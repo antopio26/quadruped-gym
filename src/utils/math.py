@@ -5,7 +5,10 @@ def exp_dist(x):
     return np.exp(x) - 1
 
 def unit(x):
-    return x / np.linalg.norm(x)
+    if np.linalg.norm(x) == 0:
+        return np.zeros_like(x)
+    else:
+        return x / np.linalg.norm(x)
 
 
 class OnlineFrequencyAmplitudeEstimation:

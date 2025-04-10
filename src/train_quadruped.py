@@ -5,7 +5,7 @@ from stable_baselines3 import PPO, SAC, TD3
 # from sb3_contrib import RecurrentPPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import SubprocVecEnv
-from envs.po_walking_quad import POWalkingQuadrupedEnv
+from src.envs.po_quad import POWalkingQuadrupedEnv
 from utils.plot import plot_data_line, plot_reward_components
 import matplotlib.pyplot as plt
 import csv
@@ -22,13 +22,13 @@ def make_env(reset_options=None):
     )
 
     # Set the random seed for reproducibility
-    # new_env.seed(10)
+    new_env.seed(10)
 
     return new_env
 
 if __name__ == '__main__':
     real_time_flag = True
-    output_folder = '../policies/po_10_ppo_v2'
+    output_folder = '../policies/po_10_head_ppo_v1'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -38,11 +38,14 @@ if __name__ == '__main__':
 
     # Define the options dictionary
     options = {
-        # 'min_speed': 0.0,
-        # 'max_speed': 0.4,
-        'fixed_heading_angle': 0.0,
-        'fixed_velocity_angle': 0.0,
-        'fixed_speed': 0.3
+        'randomize_initial_state': True,
+        'control_inputs': {
+            # 'min_speed': 0.0,
+            # 'max_speed': 0.4,
+            'fixed_heading_angle': None,
+            'fixed_velocity_angle': 0.0,
+            'fixed_speed': 0.0
+        }
     }
 
     # Create a vectorized environment with 10 parallel environments
@@ -127,7 +130,7 @@ if __name__ == '__main__':
         start_step = 0
 
     # Train the model for n steps
-    num_steps = 20
+    num_steps = 50
 
     for i in range(start_step, start_step + num_steps):
         # Train the model
