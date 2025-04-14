@@ -1,6 +1,6 @@
 import numpy as np
 
-from .base_quad import QuadrupedEnv
+from src.envs.base_quad import QuadrupedEnv
  
 class DummyQuadrupedEnv(QuadrupedEnv):
 

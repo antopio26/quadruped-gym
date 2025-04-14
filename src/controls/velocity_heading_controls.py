@@ -12,6 +12,7 @@ class VelocityHeadingControls(BaseControls):
         self.velocity = np.zeros(3)         # Local velocity [vx, vy, vz]
         self.heading = np.zeros(3)          # Unit heading vector [cos(theta), sin(theta), _]
         self.global_velocity = np.zeros(3)  # Rotated velocity (3D, with z=0)
+        self.obs_size = 3  # Size of the observation space (vx, vy, theta)
 
     def update_global_velocity(self):
         """
@@ -119,6 +120,6 @@ class VelocityHeadingControls(BaseControls):
     
     def get_obs(self):
         return np.concatenate([
-            self.velocity,
-            self.heading
+            self.velocity[:2],
+            [self.get_heading_theta()]
         ])

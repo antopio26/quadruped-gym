@@ -7,7 +7,7 @@ from gymnasium import spaces
 import cv2
 import mujoco.viewer
 
-from ..controls.base_controls import BaseControls
+from src.controls.base_controls import BaseControls
 
 class QuadrupedEnv(gym.Env):
     """
@@ -92,13 +92,14 @@ class QuadrupedEnv(gym.Env):
 
         self._get_sensor_idx = lambda name: self.model.sensor_adr[mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, name)]
         self._get_vec3_sensor = lambda idx: self.data.sensordata[idx: idx + 3]
+        self._get_vec4_sensor = lambda idx: self.data.sensordata[idx: idx + 4]
 
         # Get sensor indices
         self._body_accel_idx = self._get_sensor_idx("body_accel")
         self._body_gyro_idx = self._get_sensor_idx("body_gyro")
         self._body_vel_idx = self._get_sensor_idx("body_vel")
         self._body_pos_idx = self._get_sensor_idx("body_pos")
-        self._body_quad_idx = self._get_sensor_idx("body_quad")
+        self._body_quat_idx = self._get_sensor_idx("body_quat")
         self._body_linvel_idx = self._get_sensor_idx("body_linvel")
         self._body_xaxis_idx = self._get_sensor_idx("body_xaxis")
         self._body_zaxis_idx = self._get_sensor_idx("body_zaxis")
@@ -131,7 +132,6 @@ class QuadrupedEnv(gym.Env):
 
         # Seed and initial simulation reset.
         self.seed()
-        self.reset()
 
     def seed(self, seed=None):
         np.random.seed(seed)
@@ -265,15 +265,31 @@ class QuadrupedEnv(gym.Env):
             if self.viewer is None:
                 try:
                     self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
+
+                    # --- Apply visualization options to the viewer ---
+                    # Copy flags from self.scene_option to viewer.opt
+                    self.viewer.opt.flags[:] = self.scene_option.flags[:]
+                    # Copy frame setting
+                    self.viewer.opt.frame = self.scene_option.frame
+                    # Copy geom group settings
+                    self.viewer.opt.geomgroup[:] = self.scene_option.geomgroup[:]
+                    # --- End of applying visualization options ---
+
                     # Apply camera settings from self.camera to the viewer
                     self.viewer.cam.distance = self.camera.distance
                     self.viewer.cam.elevation = self.camera.elevation
                     self.viewer.cam.azimuth = self.camera.azimuth
-                    self.viewer.cam.lookat[:] = self.data.qpos[:3] # Initial lookat
+                    # Set initial lookat based on current qpos (might be randomized)
+                    robot_pos = self.data.qpos[:3]
+                    self.viewer.cam.lookat[:] = robot_pos
+
                 except Exception as e:
                     print(f"Could not launch MuJoCo viewer: {e}")
                     self.viewer = None
             elif self.viewer.is_running():
+                 # If viewer already running, ensure camera lookat is updated
+                 robot_pos = self.data.qpos[:3]
+                 self.viewer.cam.lookat[:] = robot_pos
                  self.viewer.sync()
 
 
@@ -305,31 +321,61 @@ class QuadrupedEnv(gym.Env):
         """
         Apply the given action, advance the simulation, and return:
         observation, total_reward, terminated, truncated, info.
-        Note: The simulation is stepped as fast as possible; rendering timing is handled in render().
         """
-        # Clip the action to the valid range.
-        action = np.clip(action, self.action_space.low, self.action_space.high)
+
+        if action is not None:
+            # Clip the action to the valid range.
+            action = np.clip(action, self.action_space.low, self.action_space.high)
+
+        # --- Store previous control state if needed by reward functions ? ---
+        # Note: WalkingQuadrupedEnv now handles this internally before calling super().step()
+        # previous_ctrl = np.copy(self.data.ctrl) # Might be needed if base rewards use it
 
         # Step simulation with frame skipping.
         for _ in range(self.frame_skip):
-            self.data.ctrl[:] = action
+            if action is not None:
+                self.data.ctrl[:] = action
+                
             mujoco.mj_step(self.model, self.data)
 
         observation = self._get_obs()
 
-        # Compute rewards using provided reward functions.
+        # --- Compute rewards and populate info dictionary ---
         total_reward = 0.0
-        reward_info = {}
+        reward_components = {} # Dictionary to store all components
+
         for name, fn in self.reward_fns.items():
-            r = fn()
-            reward_info[name] = r
-            total_reward += r
+            # Assume fn() returns either a dictionary of components or a single scalar value
+            components_or_scalar = fn()
+
+            if isinstance(components_or_scalar, dict):
+                # If it's a dictionary, merge its items into reward_components
+                # and add its values to the total reward
+                reward_components.update(components_or_scalar)
+                total_reward += sum(components_or_scalar.values())
+            elif isinstance(components_or_scalar, (float, int, np.number)):
+                # If it's a scalar, use the reward function's name as the key
+                reward_components[name] = components_or_scalar
+                total_reward += components_or_scalar
+            else:
+                # Handle unexpected return type if necessary
+                print(f"Warning: Reward function '{name}' returned unexpected type {type(components_or_scalar)}")
+
 
         # Check termination conditions.
         terminated = any(fn() for fn in self.termination_fns.values())
-        truncated = self._default_termination()  # Additional truncation conditions can be added if needed.
+        # Use default termination for truncation unless other logic is added
+        truncated = self._default_termination()
 
-        info = {"time": self.data.time, "reward_components": reward_info}
+        # --- Create the final info dictionary ---
+        info = {"time": self.data.time}
+        # Add all calculated reward components directly to the info dict
+        info.update(reward_components)
+
+        # Add other info if needed, e.g., from self.info if it holds non-reward info
+        # if hasattr(self, 'info') and isinstance(self.info, dict):
+        #    info.update(self.info) # Be careful not to overwrite reward components
+
         return observation, total_reward, terminated, truncated, info
 
     def render_vector(self, origin, vector, color, scale=0.2, radius=0.005, offset=0.0):
@@ -450,26 +496,42 @@ class QuadrupedEnv(gym.Env):
             return pixels
 
         elif self.render_mode == "human":
-            # Wait until wall-clock time catches up to simulation time.
-            if self._sim_start_time is None:
-                self._sim_start_time = time.time()
-            
-            desired_wall_time = self._sim_start_time + self.data.time
-            current_wall_time = time.time()
-            wait_time = desired_wall_time - current_wall_time
+            # Check if viewer exists and is running before syncing
+            if self.viewer is not None and self.viewer.is_running():
+                # Wait until wall-clock time catches up to simulation time.
+                if self._sim_start_time is None:
+                    self._sim_start_time = time.time()
 
-            if wait_time > 0:
-                time.sleep(wait_time)
+                desired_wall_time = self._sim_start_time + self.data.time
+                current_wall_time = time.time()
+                wait_time = desired_wall_time - current_wall_time
+
+                if wait_time > 0:
+                    time.sleep(wait_time)
 
                 # Sync the viewer with the simulation.
-                self.viewer.sync()
+                try: # Add a try-except around sync as well, just in case
+                    self.viewer.sync()
+                except Exception as e:
+                    print(f"Error during viewer sync: {e}")
+                    # Optionally close the viewer or handle the error
+                    if self.viewer:
+                        self.viewer.close()
+                    self.viewer = None # Mark viewer as unusable
 
-                if self.viewer.is_running() == False:
+                # Check again if the viewer was closed by the user during sync/wait
+                if self.viewer is not None and not self.viewer.is_running():
                     print("Viewer stopped by the user")
                     self.viewer.close()
                     self.viewer = None
+            elif self.viewer is not None and not self.viewer.is_running():
+                 # Handle case where viewer was previously initialized but is now closed
+                 print("Viewer is closed.")
+                 self.viewer.close() # Ensure cleanup
+                 self.viewer = None
+            # else: viewer is None (failed to initialize or already cleaned up)
 
-            return None
+            return None # Always return None for human mode
         
     def set_external_control(self, control_inputs: BaseControls):
         """Set external control inputs."""
