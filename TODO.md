@@ -5,7 +5,7 @@
   - For example mask only (real) sensor readings and append control inputs to the observation
 - [x] Find better reward for to penalize abrupt changes in control inputs
 
-- [ ] RANDOMIZE ENVIRONMENT - Starting pose, joints etc.
+- [x] RANDOMIZE ENVIRONMENT - Starting pose, joints etc.
 
 - [x] Make camera follow the robot
 
@@ -14,4 +14,9 @@
 - [x] Check Velocity and Position reference frames
 
 - [x] !!! Reward based on position offset from an ideal trajectory !!!
-- [ ] ACCOUT FOR HEADING VECTOR AS VELOCITY IS IN THE LOCAL FRAME
+- [x] ACCOUT FOR HEADING VECTOR AS VELOCITY IS IN THE LOCAL FRAME
+
+REALLY IMPORTANT as sums are analogous to logical OR operations while multiplications to logical ANDs
+
+- [ ] Map rewards to 0-1 range to make them easly multibiable !!!
+- [ ] Parametrize environment randomization

@@ -27,7 +27,7 @@ def make_env(reset_options=None):
 
 if __name__ == '__main__':
     real_time_flag = True
-    output_folder = './policies/po_new_sac_v0'
+    output_folder = './policies/po_new_ppo_v1'
     os.makedirs(output_folder, exist_ok=True)
 
     # Create subfolders for logs, videos and plots
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     env = SubprocVecEnv([lambda: make_env(options) for _ in range(num_envs)])
 
     # Define the model
-    model = SAC("MlpPolicy", env) # RecurrentPPO("MlpLstmPolicy", env, device = "cuda")
+    model = PPO("MlpPolicy", env) # RecurrentPPO("MlpLstmPolicy", env, device = "cuda")
 
     # Pass the output_folder for saving the continuous log
     reward_callback = RewardCallback(output_folder=output_folder, real_time_flag=real_time_flag)
@@ -73,7 +73,7 @@ if __name__ == '__main__':
         start_step = 0
 
     # Train the model for n steps
-    num_steps = 50
+    num_steps = 20
 
     for i in range(start_step, start_step + num_steps):
         # Train the model

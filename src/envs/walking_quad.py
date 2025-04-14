@@ -221,14 +221,15 @@ class WalkingQuadrupedEnv(QuadrupedEnv):
 
         # --- Define the components ---
         components = {
-            'alive_bonus': +10.0 * self.alive_bonus(),
+            'alive_bonus': +1.0 * self.alive_bonus(),
             'control_cost': -2.0 * self.control_cost(), # Uses self.previous_ctrl correctly now
             'diff_ideal_position_cost': derived_rewards_values[0], # Access the calculated derivative
-            # Add other reward components here, e.g.:
-            # 'orientation_reward': +5.0 * self.orientation_reward(),
-            # 'heading_reward': +3.0 * self.heading_reward(),
-            # 'progress_speed_reward': +2.0 * self.progress_speed_reward_local(),
+            'orientation_reward': +5.0 * exp_dist(self.orientation_reward()),
+            'heading_reward': +3.0 * exp_dist(self.heading_reward()),
         }
+
+        # heading * progress ?
+        # TODO: Map rewards to 0-1 range to make them easly multibiable !!!
 
         # Update internal info cache (optional)
         # self.info = components.copy()
