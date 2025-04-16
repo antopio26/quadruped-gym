@@ -22,3 +22,6 @@ REALLY IMPORTANT as sums are analogous to logical OR operations while multiplica
 - [ ] Parametrize environment randomization
 
 - [ ] Move rewards_continuous.csv to logs folder
+
+!!!!!!!!!!!
+- [ ] Add render custom geometry back to the renderer and to the viewer

@@ -80,8 +80,6 @@ def plot_data_line(data, xaxis='Epoch', value="AverageEpRet", std="Std",
     # else:
         # plt.show() # Or show the plot if not saving
 
-# --- rest of the file remains the same ---
-# ... (plot_data and plot_reward_components functions) ...
 
 def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1",
               smooth=1, bin_size=1, title=None, output=None, **kwargs): # Added title/output here too for consistency

@@ -243,7 +243,7 @@ if __name__ == '__main__':
             "reset_options": EVAL_RESET_OPTIONS,
             "add_reward_wrapper": True, # Include wrappers used during training
             "add_po_wrapper": True,
-            "render_mode": "human", # Use rgb_array for saving video
+            "render_mode": "human",
             "save_video": True,
             "video_path": eval_video_path,
             # Ensure width/height match desired video output
