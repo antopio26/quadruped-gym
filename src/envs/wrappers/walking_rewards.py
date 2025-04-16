@@ -87,9 +87,6 @@ class WalkingRewardWrapper(gym.Wrapper):
         if self._target_frequencies.shape != (self.env.action_space.shape[0],): raise ValueError("target_ctrl_frequencies shape mismatch")
         if self._target_amplitudes.shape != (self.env.action_space.shape[0],): raise ValueError("target_ctrl_amplitudes shape mismatch")
 
-        # Termination condition
-        self.fall_termination_height = fall_termination_height
-
     # --- End of added property ---
     
     def reset(self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
