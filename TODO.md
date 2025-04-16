@@ -20,3 +20,5 @@ REALLY IMPORTANT as sums are analogous to logical OR operations while multiplica
 
 - [ ] Map rewards to 0-1 range to make them easly multibiable !!!
 - [ ] Parametrize environment randomization
+
+- [ ] Move rewards_continuous.csv to logs folder

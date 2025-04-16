@@ -1,3 +1,4 @@
+# src/envs/base_quad.py
 import os
 import time
 import numpy as np
@@ -6,37 +7,29 @@ import gymnasium as gym
 from gymnasium import spaces
 import cv2
 import mujoco.viewer
-
-from src.controls.base_controls import BaseControls
+from typing import Optional, Dict, Callable, Any, Tuple, List
 
 class QuadrupedEnv(gym.Env):
     """
-    Custom Gymnasium environment for a MuJoCo-based quadruped.
+    Core Gymnasium environment for a MuJoCo-based quadruped simulation.
 
-    This environment loads the model from an XML file and simulates the dynamics.
-    It applies user-specified control inputs, steps the simulation with an optional
-    frame-skip, and supports both "human" and "rgb_array" render modes with decoupled
-    simulation time and rendering FPS. Additionally, video can be recorded independently
-    at the specified render_fps.
+    Provides the fundamental interface for interacting with the MuJoCo physics
+    engine, including stepping the simulation, accessing sensor data via
+    public methods, and handling rendering. Task-specific logic like rewards,
+    complex observations, or external control management should be added
+    via Gymnasium wrappers.
 
     Attributes:
-        model (mujoco.MjModel): The MuJoCo model.
-        data (mujoco.MjData): The simulation data.
-        max_time (float): Maximum episode duration (seconds).
-        frame_skip (int): Number of simulation steps per environment step.
-        render_mode (str or None): One of "human", "rgb_array", or None.
-        width (int): Width of rendered images.
-        height (int): Height of rendered images.
+        model (mujoco.MjModel): The loaded MuJoCo model.
+        data (mujoco.MjData): The MuJoCo simulation data instance.
+        max_time (float): Maximum duration of an episode in simulation seconds.
+        frame_skip (int): Number of MuJoCo physics steps per environment `step()`.
+        render_mode (Optional[str]): Rendering mode ('human', 'rgb_array', or None).
+        width (int): Width of the rendered frame for 'rgb_array' mode.
+        height (int): Height of the rendered frame for 'rgb_array' mode.
         render_fps (int): Target frames per second for rendering.
-        scene_option (mujoco.MjvOption): Rendering options.
-        renderer (mujoco.Renderer or None): Renderer instance (created on demand).
-        reward_fns (dict): Dictionary mapping reward names to reward functions.
-        termination_fns (dict): Dictionary mapping termination names to functions.
-        save_video (bool): Whether to save a video of the simulation.
-        video_path (str): Path to save the video file.
-        video_writer (cv2.VideoWriter or None): Video writer instance.
-        _sim_start_time (float or None): Wall-clock time when simulation starts.
-        _frame_count (int): Number of frames rendered so far.
+        observation_space (gym.spaces.Box): Defines the observation space (defaults to full sensor data).
+        action_space (gym.spaces.Box): Defines the action space (based on model actuators).
     """
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
@@ -44,40 +37,47 @@ class QuadrupedEnv(gym.Env):
                  model_path: str = "./models/quadruped/scene.xml",
                  max_time: float = 10.0,
                  frame_skip: int = 16,
-                 render_mode: str = None,
+                 render_mode: Optional[str] = None,
                  width: int = 720,
                  height: int = 480,
                  render_fps: int = 30,
-                 reward_fns: dict = None,
-                 termination_fns: dict = None,
                  save_video: bool = False,
                  video_path: str = "videos/simulation.mp4",
-                 use_default_termination: bool = True,
-                 reset_options=None):
+                 reset_options: Optional[Dict[str, Any]] = None):
         super().__init__()
-        self.model_path = model_path
-        if not os.path.exists(self.model_path):
-            raise FileNotFoundError(f"Model file not found: {self.model_path}")
 
-        # Load model and create simulation data.
-        self.model = mujoco.MjModel.from_xml_path(self.model_path)
-        self.data = mujoco.MjData(self.model)
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+        self.model_path = model_path
+
+        # Load MuJoCo model and data
+        try:
+            self.model = mujoco.MjModel.from_xml_path(self.model_path)
+            self.data = mujoco.MjData(self.model)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load MuJoCo model from {model_path}: {e}") from e
 
         self.max_time = max_time
         self.frame_skip = frame_skip
+        if frame_skip < 1:
+            raise ValueError("frame_skip must be at least 1.")
+
+        # Rendering setup
         self.render_mode = render_mode
         self.width = width
         self.height = height
         self.render_fps = render_fps
-        self.renderer = None  # Created on first render call.
-        self.viewer = None  # MuJoCo viewer for human rendering.
-        self._sim_start_time = None  # Wall-clock time when simulation starts.
-        self._frame_count = 0
-
+        
         # Update metadata with the render fps.
         self.metadata["render_fps"] = self.render_fps
+        
+        self.renderer: Optional[mujoco.Renderer] = None
+        self.viewer: Optional[mujoco.viewer.Handle] = None
+        
+        self._sim_start_time: Optional[float] = None
+        self._frame_count: int = 0
 
-        # Set up camera for rendering.
+        # Camera and Scene options
         self.camera = mujoco.MjvCamera()
         self.camera.distance = 1.0  # Distance from the robot
         self.camera.elevation = -30  # Camera elevation angle
@@ -88,71 +88,58 @@ class QuadrupedEnv(gym.Env):
         self.scene_option.flags[mujoco.mjtVisFlag.mjVIS_JOINT] = False
         self.scene_option.flags[mujoco.mjtVisFlag.mjVIS_CONTACTPOINT] = False
         self.scene_option.frame = mujoco.mjtFrame.mjFRAME_SITE
-        self.scene_option.geomgroup[:] = 1  # Enable all geom groups.
+        self.scene_option.geomgroup[:] = 1
 
-        self._get_sensor_idx = lambda name: self.model.sensor_adr[mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, name)]
-        self._get_vec3_sensor = lambda idx: self.data.sensordata[idx: idx + 3]
-        self._get_vec4_sensor = lambda idx: self.data.sensordata[idx: idx + 4]
+        # --- Internal Sensor Helpers (Protected) ---
+        self._sensor_indices: Dict[str, int] = self._initialize_sensor_indices([
+            "body_accel", "body_gyro", "body_vel", "body_pos", "body_quat",
+            "body_linvel", "body_xaxis", "body_zaxis"
+            # Add names of joint sensors if they exist in your XML, e.g., "joint_pos_sensor"
+        ])
+        self._get_vec3_sensor = lambda name: self.data.sensordata[self._sensor_indices[name]: self._sensor_indices[name] + 3]
+        self._get_vec4_sensor = lambda name: self.data.sensordata[self._sensor_indices[name]: self._sensor_indices[name] + 4]
 
-        # Get sensor indices
-        self._body_accel_idx = self._get_sensor_idx("body_accel")
-        self._body_gyro_idx = self._get_sensor_idx("body_gyro")
-        self._body_vel_idx = self._get_sensor_idx("body_vel")
-        self._body_pos_idx = self._get_sensor_idx("body_pos")
-        self._body_quat_idx = self._get_sensor_idx("body_quat")
-        self._body_linvel_idx = self._get_sensor_idx("body_linvel")
-        self._body_xaxis_idx = self._get_sensor_idx("body_xaxis")
-        self._body_zaxis_idx = self._get_sensor_idx("body_zaxis")
+        # Reset options
+        self.reset_options = reset_options if reset_options is not None else {}
 
-        # External control inputs (e.g., from a controller).
-        self.control_inputs = None
-
-        # Reset options for the environment.
-        self.reset_options = reset_options
-
-        # Define the action space: one actuator per joint (12 actuators assumed).
+        # Define action and observation spaces
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.model.nu,), dtype=np.float32)
-
-        # Define observation space using sensor data.
+        # Default observation space uses all available sensor data
         obs_size = self.model.nsensordata
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(obs_size,), dtype=np.float32)
 
-        # Set up modular reward and termination functions.
-        self.reward_fns = reward_fns if reward_fns is not None else {"default": self._default_reward}
-        self.termination_fns = termination_fns if termination_fns is not None else {}
-
-        # Add default termination function if requested.
-        if use_default_termination:
-            self.termination_fns["default"] = self._default_termination
-
-        # Video recording settings.
+        # Video recording
         self.save_video = save_video
         self.video_path = video_path
-        self.video_writer = None
+        self.video_writer: Optional[cv2.VideoWriter] = None
 
-        # Seed and initial simulation reset.
-        self.seed()
+        # Ensure np_random is initialized by Gymnasium's Env base class
+        # self.seed() is deprecated; use super().reset(seed=...)
 
-    def seed(self, seed=None):
-        np.random.seed(seed)
-        return [seed]
+    def _initialize_sensor_indices(self, sensor_names: List[str]) -> Dict[str, int]:
+        """Helper to get and validate sensor indices."""
+        indices = {}
+        missing_sensors = []
+        for name in sensor_names:
+            try:
+                sensor_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, name)
+                if sensor_id == -1:
+                    missing_sensors.append(name)
+                else:
+                    indices[name] = self.model.sensor_adr[sensor_id]
+            except KeyError: # Should not happen with mj_name2id, but good practice
+                 missing_sensors.append(name)
+
+        if missing_sensors:
+            raise ValueError(f"Sensors not found in MuJoCo model '{self.model_path}': {', '.join(missing_sensors)}. "
+                             "Please check sensor names in the XML file.")
+        return indices
 
     def _randomize_initial_state(self):
-        """
-        Randomly initialize orientation, joint angles, and set respective controls.
-        Assumes the standard quadruped structure from quadruped.xml:
-        - Free joint (pos + quat)
-        - 12 actuated joints (hip, knee, ankle for each of the 4 legs)
-        """
-
-        # --- Orientation and Base Velocity Initialization ---
-        # Set initial position (e.g., slightly above the ground)
-        # You might want to randomize this within a certain area too.
-        self.data.qpos[0:3] = [0, 0, 0.25] # Start higher to avoid initial ground contact issues with random orientation
-
-        # Generate a random unit quaternion for arbitrary orientation
-        # Method: Generate 4 random numbers from N(0,1), then normalize.
-        random_quat = np.random.randn(4)
+        """Randomly initializes orientation, joint angles, velocities, and controls."""
+        # --- Orientation and Base Velocity ---
+        self.data.qpos[0:3] = [0, 0, 0.25] # Start slightly above ground
+        random_quat = self.np_random.standard_normal(4) # Use Gym's RNG
         random_quat /= np.linalg.norm(random_quat)
         # Ensure the scalar component (w) is positive if needed, though MuJoCo handles both q and -q as the same rotation.
         # if random_quat[0] < 0:
@@ -225,43 +212,36 @@ class QuadrupedEnv(gym.Env):
         # Set the initial control signals (ctrl)
         self.data.ctrl[:] = control_values
 
-        # Ensure the simulation state reflects these initial values
-        mujoco.mj_forward(self.model, self.data)
+        mujoco.mj_forward(self.model, self.data) # Apply changes
 
+    def reset(self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+        """Resets the environment to an initial state."""
+        super().reset(seed=seed) # Handles seeding via np_random
 
-    def reset(self, seed=None, options=None):
-        """
-        Reset the simulation to an initial state and return the initial observation.
-        Also resets the wall-clock timer for real-time synchronization in human mode.
-        """
-        # Seed if necessary
-        if seed is not None:
-            self.seed(seed) # Assuming you have a seed method
+        # Combine instance options with method options (method options take precedence)
+        combined_options = self.reset_options.copy()
+        if options is not None:
+            combined_options.update(options)
 
-        if options is None:
-            options = self.reset_options
-
-        # Reset MuJoCo data structures to defaults
+        # Reset MuJoCo simulation state
         mujoco.mj_resetData(self.model, self.data)
 
-        # Apply the custom random initialization
-        if options and options.get("randomize_initial_state", False):
+        # Apply custom random initialization if requested
+        if combined_options.get("randomize_initial_state", False):
             self._randomize_initial_state()
+        else:
+            # Ensure a forward pass even if not randomizing, to set initial sensor values etc.
+            mujoco.mj_forward(self.model, self.data)
 
-        # Reset simulation time
+
+        # Reset simulation time and rendering state
         self.data.time = 0.0
-
-        # Apply random external controls if specified (assuming self.control_inputs exists)
-        if self.control_inputs is not None and options and options.get("control_inputs"):
-            self.control_inputs.sample(options=options["control_inputs"])
-
-        # Reset simulation-time trackers
         self._frame_count = 0
+        self._sim_start_time = None
 
-        # Set the wall-clock start time if running in human mode
+        # --- Viewer and Video Initialization ---
         if self.render_mode == "human":
             self._sim_start_time = time.time()
-            # Open the viewer passively if not already open
             if self.viewer is None:
                 try:
                     self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
@@ -284,12 +264,10 @@ class QuadrupedEnv(gym.Env):
                     self.viewer.cam.lookat[:] = robot_pos
 
                 except Exception as e:
-                    print(f"Could not launch MuJoCo viewer: {e}")
+                    print(f"Warning: Could not launch MuJoCo viewer: {e}")
                     self.viewer = None
             elif self.viewer.is_running():
-                 # If viewer already running, ensure camera lookat is updated
-                 robot_pos = self.data.qpos[:3]
-                 self.viewer.cam.lookat[:] = robot_pos
+                 self.viewer.cam.lookat[:] = self.get_body_position() # Use accessor
                  self.viewer.sync()
 
 
@@ -301,197 +279,223 @@ class QuadrupedEnv(gym.Env):
             self.video_writer = cv2.VideoWriter(self.video_path, fourcc, self.render_fps, (self.width, self.height))
 
         observation = self._get_obs()
-        info = {} # Standard Gymnasium practice
+        info = self._get_info() # Get initial info (usually empty)
 
         return observation, info
 
-    def _get_obs(self):
-        """Obtain observation from the simulation."""
+    # --- Public Sensor/State Accessor Methods ---
+
+    def get_body_linear_acceleration(self) -> np.ndarray:
+        """Returns the body linear acceleration (IMU) in the global frame."""
+        return self._get_vec3_sensor("body_accel").copy()
+
+    def get_body_angular_velocity(self) -> np.ndarray:
+        """Returns the body angular velocity (Gyroscope) in the global frame."""
+        return self._get_vec3_sensor("body_gyro").copy()
+
+    def get_body_linear_velocity(self) -> np.ndarray:
+        """Returns the body linear velocity in the global frame."""
+        return self._get_vec3_sensor("body_vel").copy()
+
+    def get_body_position(self) -> np.ndarray:
+        """Returns the global position of the body."""
+        return self._get_vec3_sensor("body_pos").copy()
+
+    def get_body_orientation_quat(self) -> np.ndarray:
+        """Returns the global orientation of the body as a quaternion (w, x, y, z)."""
+        return self._get_vec4_sensor("body_quat").copy()
+
+    def get_body_x_axis(self) -> np.ndarray:
+        """Returns the body's local X-axis vector in the global frame."""
+        return self._get_vec3_sensor("body_xaxis").copy()
+
+    def get_body_z_axis(self) -> np.ndarray:
+        """Returns the body's local Z-axis vector (up direction) in the global frame."""
+        return self._get_vec3_sensor("body_zaxis").copy()
+
+    def get_actuator_forces(self) -> np.ndarray:
+        """Returns the forces/torques applied by the actuators."""
+        return self.data.actuator_force.copy()
+
+    def get_control_inputs(self) -> np.ndarray:
+        """Returns the current control signals applied to the actuators."""
+        return self.data.ctrl.copy()
+
+    def get_joint_angles(self) -> np.ndarray:
+        """Returns the current angles of the actuated joints (from qpos)."""
+        qpos_start_idx = 7 # Assumes 3 pos + 4 quat for free joint
+        num_actuated_joints = self.model.nu
+        return self.data.qpos[qpos_start_idx : qpos_start_idx + num_actuated_joints].copy()
+
+    def get_joint_velocities(self) -> np.ndarray:
+        """Returns the current velocities of the actuated joints (from qvel)."""
+        qvel_start_idx = 6 # Assumes 3 lin_vel + 3 ang_vel for free joint
+        num_actuated_joints = self.model.nu
+        return self.data.qvel[qvel_start_idx : qvel_start_idx + num_actuated_joints].copy()
+
+    def get_time(self) -> float:
+        """Returns the current simulation time."""
+        return self.data.time
+
+    def get_dt(self) -> float:
+        """Returns the environment step duration (model timestep * frame_skip)."""
+        return self.model.opt.timestep * self.frame_skip
+
+    # --- Core Gym Methods ---
+
+    def _get_obs(self) -> np.ndarray:
+        """Default observation: returns all available sensor data."""
         return self.data.sensordata.copy()
 
-    def _default_reward(self):
-        """Default reward function that returns 0."""
-        return 0.0
+    def _get_info(self) -> Dict[str, Any]:
+        """Returns basic information about the environment state."""
+        # Base environment provides minimal info. Wrappers add more.
+        return {"time": self.get_time()}
 
-    def _default_termination(self):
-        """Default termination: episode ends if simulation time exceeds max_time."""
-        return self.data.time >= self.max_time
+    def _is_terminated(self) -> bool:
+        """Checks if the episode should terminate (e.g., robot fell)."""
+        # Base environment has no specific termination conditions. Wrappers add these.
+        return False
 
-    def step(self, action):
-        """
-        Apply the given action, advance the simulation, and return:
-        observation, total_reward, terminated, truncated, info.
-        """
+    def _is_truncated(self) -> bool:
+        """Checks if the episode should be truncated (e.g., time limit reached)."""
+        return self.get_time() >= self.max_time
 
+    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+        """Applies action, steps simulation, returns results."""
         if action is not None:
             # Clip the action to the valid range.
             action = np.clip(action, self.action_space.low, self.action_space.high)
 
-        # --- Store previous control state if needed by reward functions ? ---
-        # Note: WalkingQuadrupedEnv now handles this internally before calling super().step()
-        # previous_ctrl = np.copy(self.data.ctrl) # Might be needed if base rewards use it
+        # Apply action and step physics
+        try:
+            for _ in range(self.frame_skip):
+                if action is not None:
+                    self.data.ctrl[:] = action
+                mujoco.mj_step(self.model, self.data)
+        except mujoco.FatalError as e:
+            print(f"MuJoCo simulation error: {e}. Resetting environment.")
+            # A robust way to handle this might be to return a specific state
+            # indicating failure, or reset and return the initial state.
+            # For simplicity, we'll return the current (likely invalid) state
+            # but mark as terminated.
+            observation = self._get_obs() # May contain NaNs or Infs
+            reward = 0.0 # Or a large penalty
+            terminated = True
+            truncated = False # Not truncated due to time limit
+            info = self._get_info()
+            info["mujoco_error"] = str(e)
+            return observation, reward, terminated, truncated, info
 
-        # Step simulation with frame skipping.
-        for _ in range(self.frame_skip):
-            if action is not None:
-                self.data.ctrl[:] = action
-                
-            mujoco.mj_step(self.model, self.data)
 
+        # Get observation, termination, truncation, and info
         observation = self._get_obs()
+        terminated = self._is_terminated() # Base env always returns False
+        truncated = self._is_truncated()
+        info = self._get_info()
 
-        # --- Compute rewards and populate info dictionary ---
-        total_reward = 0.0
-        reward_components = {} # Dictionary to store all components
+        # Base environment provides zero reward. Wrappers add reward calculation.
+        reward = 0.0
 
-        for name, fn in self.reward_fns.items():
-            # Assume fn() returns either a dictionary of components or a single scalar value
-            components_or_scalar = fn()
+        # Render if necessary
+        self.render()
 
-            if isinstance(components_or_scalar, dict):
-                # If it's a dictionary, merge its items into reward_components
-                # and add its values to the total reward
-                reward_components.update(components_or_scalar)
-                total_reward += sum(components_or_scalar.values())
-            elif isinstance(components_or_scalar, (float, int, np.number)):
-                # If it's a scalar, use the reward function's name as the key
-                reward_components[name] = components_or_scalar
-                total_reward += components_or_scalar
-            else:
-                # Handle unexpected return type if necessary
-                print(f"Warning: Reward function '{name}' returned unexpected type {type(components_or_scalar)}")
+        return observation, reward, terminated, truncated, info
 
+    # --- Rendering Methods ---
 
-        # Check termination conditions.
-        terminated = any(fn() for fn in self.termination_fns.values())
-        # Use default termination for truncation unless other logic is added
-        truncated = self._default_termination()
-
-        # --- Create the final info dictionary ---
-        info = {"time": self.data.time}
-        # Add all calculated reward components directly to the info dict
-        info.update(reward_components)
-
-        # Add other info if needed, e.g., from self.info if it holds non-reward info
-        # if hasattr(self, 'info') and isinstance(self.info, dict):
-        #    info.update(self.info) # Be careful not to overwrite reward components
-
-        return observation, total_reward, terminated, truncated, info
-
-    def render_vector(self, origin, vector, color, scale=0.2, radius=0.005, offset=0.0):
-        """
-        Renders an arrow from origin along 'vector'.
-        """
-        # Compute the endpoint.
-        origin = origin.copy() + np.array([0, 0, offset])
-        endpoint = origin + (vector * scale)
-
-        # Check that there is room in the scene.geoms array.
+    def render_vector(self, origin: np.ndarray, vector: np.ndarray, color: List[float], scale: float = 0.2, radius: float = 0.005, offset: float = 0.0):
+        """Helper to render an arrow geometry in the scene."""
+        if self.renderer is None or self.renderer.scene is None: return
         scn = self.renderer.scene
-        if scn.ngeom >= scn.maxgeom:
-            return
+        if scn.ngeom >= scn.maxgeom: return # Check geom buffer space
 
-        # Initialize a new geom at index 'ngeom'
+        origin_offset = origin.copy() + np.array([0, 0, offset])
+        endpoint = origin_offset + (vector * scale)
         idx = scn.ngeom
+        try:
+            mujoco.mjv_initGeom(scn.geoms[idx], mujoco.mjtGeom.mjGEOM_ARROW1, np.zeros(3), np.zeros(3), np.zeros(9), np.array(color, dtype=np.float32))
+            mujoco.mjv_connector(scn.geoms[idx], mujoco.mjtGeom.mjGEOM_ARROW1, radius, origin_offset, endpoint)
+            scn.ngeom += 1
+        except IndexError:
+             print("Warning: Ran out of geoms in MuJoCo scene for rendering vector.")
 
-        # Set up the arrow geometry.
-        arrow = mujoco.MjvGeom()
-        arrow.type = mujoco.mjtGeom.mjGEOM_ARROW1
-        arrow.rgba[:] = np.array(color, dtype=np.float32)
 
-        # Initialize with default values; then set up with connector:
-        mujoco.mjv_initGeom(scn.geoms[idx], arrow.type, np.zeros(3), np.zeros(3), np.zeros(9), arrow.rgba)
-        # Use the helper function to compute position, orientation and size from two endpoints.
-        # Here, radius determines the thickness of the arrow.
-        mujoco.mjv_connector(scn.geoms[idx], arrow.type, radius, origin, endpoint)
-        scn.ngeom += 1
-
-    def render_point(self, position, color, radius=0.01):
-        """
-        Render a point at the given position.
-        """
-        # Check that there is room in the scene.geoms array.
+    def render_point(self, position: np.ndarray, color: List[float], radius: float = 0.01):
+        """Helper to render a sphere geometry at a point."""
+        if self.renderer is None or self.renderer.scene is None: return
         scn = self.renderer.scene
-        if scn.ngeom >= scn.maxgeom:
-            return
+        if scn.ngeom >= scn.maxgeom: return
 
-        # Initialize a new geom at index 'ngeom'
         idx = scn.ngeom
-
-        # Set up the point geometry.
-        point = mujoco.MjvGeom()
-        point.type = mujoco.mjtGeom.mjGEOM_SPHERE
-        point.rgba[:] = np.array(color, dtype=np.float32)
-        point.size[:] = [radius, radius, radius]
-
-        # Initialize with default values; then set up with position:
-        mujoco.mjv_initGeom(scn.geoms[idx], point.type, point.size, position, np.eye(3, 3).reshape(9) , point.rgba)
-        scn.ngeom += 1
+        size = np.array([radius, radius, radius])
+        rgba = np.array(color, dtype=np.float32)
+        try:
+            mujoco.mjv_initGeom(scn.geoms[idx], mujoco.mjtGeom.mjGEOM_SPHERE, size, position.astype(np.float64), np.eye(3).flatten(), rgba)
+            scn.ngeom += 1
+        except IndexError:
+             print("Warning: Ran out of geoms in MuJoCo scene for rendering point.")
 
     def render_custom_geoms(self):
-        """
-        Handler for rendering custom geometry.
-        By default, do nothing.
-        Derived classes can override this to add their own geoms.
-        """
-        pass
+        """Placeholder for wrappers to add custom visualizations during rendering."""
+        pass # Wrappers should override this if they need custom rendering
 
     def update_camera(self):
-        """Update the camera to follow the robot."""
-        # Get the robot's position
-        robot_pos = self.data.qpos[:3]
-
-        # Set the camera position and orientation
+        """Updates the camera lookat point to follow the robot's base."""
+        robot_pos = self.get_body_position() # Use public accessor
         self.camera.lookat[:] = robot_pos
 
-        """
-        if self.viewer is not None:
-            self.viewer.cam.lookat[0] = self.camera.lookat[0]
-            self.viewer.cam.lookat[1] = self.camera.lookat[1]
-            self.viewer.cam.lookat[2] = self.camera.lookat[2]
-        """
-    
-    def render(self):
-        """
-        Render the simulation only when needed based on simulation time and the desired frame rate.
+        # Update viewer camera if in human mode (not for now)
+        if self.render_mode == "human" and self.viewer is not None and self.viewer.is_running():
+            # self.viewer.cam.lookat[:] = robot_pos
+            pass
 
-        Behavior for all modes:
-          - A new frame is rendered only if simulation time has advanced by at least (1/render_fps) seconds.
-          - The frame is then processed (saved to video if enabled and/or returned as an array).
-          - In "human" mode, the MuJoCo viewer is used for visualization.
-        """
+    def render(self) -> Optional[np.ndarray]:
+        """Renders the environment based on the render_mode."""
         if self.render_mode is None:
             return None
 
-        # Calculate the expected number of frames based on simulation time and render_fps.
-        expected_frames = int(self.data.time * self.render_fps)
+        # Throttle rendering based on render_fps
+        sim_time = self.get_time()
+        expected_frames = int(sim_time * self.render_fps)
         if self._frame_count >= expected_frames:
-            return None
-        else:
-            self._frame_count += 1
+            return None # Skip frame
+        self._frame_count += 1
 
-        # Create renderer if not already created.
+        # Initialize renderer if needed
         if self.renderer is None:
-            self.renderer = mujoco.Renderer(self.model, width=self.width, height=self.height)
+            try:
+                self.renderer = mujoco.Renderer(self.model, width=self.width, height=self.height)
+            except Exception as e:
+                 print(f"Warning: Failed to initialize MuJoCo renderer: {e}")
+                 self.render_mode = None # Disable rendering
+                 return None
 
-        # Update the camera to follow the robot
+        # Update camera and scene
         self.update_camera()
+        try:
+            self.renderer.update_scene(self.data, scene_option=self.scene_option, camera=self.camera)
+        except mujoco.FatalError as e:
+             print(f"Warning: MuJoCo error during scene update: {e}")
+             return None # Skip rendering this frame
 
-        # Update scene and clear any previous custom geoms
-        self.renderer.update_scene(self.data, scene_option=self.scene_option, camera=self.camera)
-
-        # Call the handler for custom geometry; if not overridden, nothing happens
+        # Allow wrappers to add custom geoms
         self.render_custom_geoms()
 
-        # Render the frame and convert to BGR format for OpenCV.
-        pixels = self.renderer.render()
-        
-        # Save frame to video if enabled.
+        # Get pixel data
+        try:
+            pixels = self.renderer.render()
+        except mujoco.FatalError as e:
+             print(f"Warning: MuJoCo error during rendering: {e}")
+             return None # Skip rendering this frame
+
+
+        # Save to video if enabled
         if self.save_video and self.video_writer is not None:
             pixels_bgr = cv2.cvtColor(pixels, cv2.COLOR_RGB2BGR)
             self.video_writer.write(pixels_bgr)
 
-        # Mode-specific handling.
+        # Handle different render modes
         if self.render_mode == "rgb_array":
             return pixels
 
@@ -532,22 +536,21 @@ class QuadrupedEnv(gym.Env):
             # else: viewer is None (failed to initialize or already cleaned up)
 
             return None # Always return None for human mode
-        
-    def set_external_control(self, control_inputs: BaseControls):
-        """Set external control inputs."""
-        self.control_inputs = control_inputs
-        
 
     def close(self):
-        """Clean up resources such as the renderer, video writer, mujoco viewer."""
+        """Cleans up resources like renderer, viewer, and video writer."""
         if self.renderer is not None:
             self.renderer.close()
             self.renderer = None
-
         if self.video_writer is not None:
             self.video_writer.release()
             self.video_writer = None
-        
         if self.viewer is not None:
-            self.viewer.close()
+            try:
+                # Check if running before closing, viewer might crash otherwise
+                if self.viewer.is_running():
+                    self.viewer.close()
+            except Exception as e:
+                print(f"Warning: Error closing MuJoCo viewer: {e}")
             self.viewer = None
+
