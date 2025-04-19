@@ -104,12 +104,11 @@ def evaluate_model(model_path: str, obs_window: int = 5):
 
                 action, _state = model.predict(obs, deterministic=True) # Use deterministic for eval
                 obs, reward, terminated, truncated, info = env.step(action)
+                env.render()
                 done = terminated # Use terminated flag
 
                 episode_rewards.append(reward)
                 step_count += 1
-
-                # Render is called internally by env.step() if render_mode is set
 
             print(f"Episode finished after {step_count} steps.")
             print(f"Total Reward: {sum(episode_rewards):.3f}")

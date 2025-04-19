@@ -86,7 +86,7 @@ def run_env_test():
             obs, reward, terminated, truncated, info = env.step(action)
 
             # --- Render the Environment ---
-            # Render is called internally by env.step() when render_mode="human"
+            env.render()
 
             # --- Handle Episode End (Optional but good practice) ---
             # Even with max_time=inf, termination conditions might exist (e.g., falling in WalkingRewardWrapper)

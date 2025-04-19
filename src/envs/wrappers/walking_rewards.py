@@ -3,10 +3,7 @@ import gymnasium as gym
 import numpy as np
 from typing import Optional, Dict, Any, Tuple, List
 
-# Assuming VelocityHeadingControls exists and has global_velocity, heading attributes
-from src.controls.velocity_heading_controls import VelocityHeadingControls
 from src.utils.math import exp_dist, OnlineFrequencyAmplitudeEstimation
-from src.envs.wrappers.control_input import ControlInputWrapper # Needed for type checking
 from src.envs.wrappers.utils import find_wrapper_by_name
 
 class WalkingRewardWrapper(gym.Wrapper):
@@ -152,6 +149,30 @@ class WalkingRewardWrapper(gym.Wrapper):
             self.ideal_position += global_velocity * dt
         else:
              print("Warning: Control logic does not have 'global_velocity'. Ideal position not updated.")
+
+    def render(self) -> Optional[np.ndarray]:
+        """Renders the environment and adds walking reward visualizations."""
+        # Render the underlying environment(s) first.
+        render_output = self.env.render()
+
+        # Add this wrapper's custom visualizations after the underlying render.
+        unwrapped_env = self.env.unwrapped
+        # Check if rendering is active (renderer exists) in the base environment
+        if hasattr(unwrapped_env, 'renderer') and unwrapped_env.renderer is not None:
+            # Get the render_point helper function
+            render_point_func = getattr(unwrapped_env, 'render_point', None)
+
+            # Render the ideal position marker if the function exists
+            if render_point_func and self.ideal_position is not None:
+                # print("[DEBUG] WalkingRewardWrapper rendering ideal position") # Optional debug print
+                render_point_func(
+                    position=self.ideal_position,
+                    color=[1.0, 0.0, 1.0, 0.8], # Magenta, slightly transparent
+                    radius=0.02
+                )
+
+        # Return the output from the underlying render call
+        return render_output
 
     # --- Reward Component Functions (using public accessors via unwrapped env) ---
 

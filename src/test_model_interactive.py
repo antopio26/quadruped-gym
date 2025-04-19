@@ -80,7 +80,7 @@ def run_model_test(model_path: str, obs_window: int):
             obs, reward, terminated, truncated, info = env.step(action)
 
             # --- Render the Environment ---
-            # Render is called internally by env.step() when render_mode="human"
+            env.render()
 
             # --- Handle Episode End ---
             if terminated or truncated:

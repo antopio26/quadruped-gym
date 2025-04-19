@@ -66,7 +66,7 @@ if __name__ == '__main__':
     # Training parameters
     MODEL_CLASS = PPO # PPO, SAC, TD3, RecurrentPPO
     POLICY = "MlpPolicy" # "MlpPolicy" or "MlpLstmPolicy" for RecurrentPPO
-    TOTAL_TIMESTEPS_PER_LEARN = 500_000 # Timesteps per call to model.learn()
+    TOTAL_TIMESTEPS_PER_LEARN = 5_000 # Timesteps per call to model.learn()
     NUM_LEARN_CALLS = 20 # Total training = TOTAL_TIMESTEPS_PER_LEARN * NUM_LEARN_CALLS
     LEARN_KWARGS = {"progress_bar": True} # Add other SB3 learn kwargs if needed
     VERBOSE = 0 # Verbosity level for SB3 (0=none, 1=info, 2=debug)
@@ -110,11 +110,10 @@ if __name__ == '__main__':
         "add_reward_wrapper": True, # Rewards needed for training
         "add_po_wrapper": True,     # PO observations needed for training
         "render_mode": None,        # No rendering during training
-        # Add other create_quadruped_env args if needed (e.g., reward_weights)
+        # Add other create_quadruped_env args if needed
     }
     # Use SubprocVecEnv for parallel processing, DummyVecEnv for debugging
     vec_env = SubprocVecEnv([make_env(i, env_options=train_env_options) for i in range(NUM_ENVS)])
-    # vec_env = DummyVecEnv([make_env(0, env_options=train_env_options)]) # For debugging
 
     print(f"Training Env Observation Space: {vec_env.observation_space}")
     print(f"Training Env Action Space: {vec_env.action_space}")
@@ -260,9 +259,9 @@ if __name__ == '__main__':
             while not done and not truncated:
                 action, _state = model.predict(obs, deterministic=True)
                 obs, reward, terminated, truncated, info = eval_env.step(action)
+                eval_env.render()
                 done = terminated
                 eval_step_count += 1
-                # Render is called internally and saves video frames
 
             print(f"Evaluation finished after {eval_step_count} steps. Video saved to {eval_video_path}")
 

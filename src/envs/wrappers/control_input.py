@@ -80,42 +80,42 @@ class ControlInputWrapper(gym.Wrapper):
         info['control_obs_size'] = self._control_obs_size
 
         return observation, reward, terminated, truncated, info
+    
+    # --- Override render ---
+    def render(self) -> Optional[np.ndarray]:
+        """Renders the environment and adds control visualizations."""
+        # Render the underlying environment(s) first.
+        render_output = self.env.render()
 
-    # --- Provide methods to set controls externally ---
-    # Example for VelocityHeadingControls (adapt as needed for other BaseControls subclasses)
-    def set_velocity_heading(self, vx: float, vy: float, heading_rate: float):
-        """Sets the desired velocity and heading rate."""
-        if hasattr(self.control_logic, 'set_controls'):
-            # Pass current body orientation if needed by the control logic
-            current_quat = self.env.unwrapped.get_body_orientation_quat()
-            self.control_logic.set_controls(vx, vy, heading_rate, current_quat)
-        else:
-            raise AttributeError(f"Control logic {type(self.control_logic).__name__} lacks 'set_controls' method.")
+        # Add this wrapper's custom visualizations after the base render.
+        # We need access to the renderer and helper methods from the base env.
+        unwrapped_env = self.env.unwrapped
+        # Check if rendering is active (renderer exists) in the base environment
+        if hasattr(unwrapped_env, 'renderer') and unwrapped_env.renderer is not None:
+            # Check if the control logic has a rendering method
+            if hasattr(self.control_logic, 'render_geoms'):
+                # Get necessary info from the base environment
+                origin = unwrapped_env.get_body_position()
+                # Get base environment's render helper functions
+                render_vector_func = getattr(unwrapped_env, 'render_vector', None)
+                render_point_func = getattr(unwrapped_env, 'render_point', None)
+
+                # Ensure the helper functions exist before calling render_geoms
+                if render_vector_func and render_point_func:
+                    # print("[DEBUG] ControlInputWrapper rendering control geoms") # Optional debug print
+                    self.control_logic.render_geoms(
+                        origin=origin,
+                        render_vector_func=render_vector_func,
+                        render_point_func=render_point_func
+                        # Pass the renderer scene if needed by render_geoms
+                        # scene=unwrapped_env.renderer.scene
+                    )
+
+        # Return the output from the underlying render call (e.g., pixel array or None)
+        return render_output
 
     # --- Expose control logic object ---
     @property
     def current_controls(self) -> BaseControls:
          """Provides access to the underlying control logic object."""
          return self.control_logic
-
-    # --- Override render_custom_geoms ---
-    def render_custom_geoms(self):
-        """Renders control-specific visualizations."""
-        # Call wrapped env's method first (allows stacking render calls)
-        if hasattr(self.env, 'render_custom_geoms'):
-             self.env.render_custom_geoms()
-
-        # Render control visualizations if the method exists
-        if hasattr(self.control_logic, 'render_geoms'):
-             # Pass necessary info from the base environment
-             origin = self.env.unwrapped.get_body_position()
-             # Pass base environment's render helpers
-             render_vector_func = getattr(self.env.unwrapped, 'render_vector', None)
-             render_point_func = getattr(self.env.unwrapped, 'render_point', None)
-
-             if render_vector_func and render_point_func:
-                 self.control_logic.render_geoms(
-                     origin=origin,
-                     render_vector_func=render_vector_func,
-                     render_point_func=render_point_func
-                 )

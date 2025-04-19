@@ -397,9 +397,6 @@ class QuadrupedEnv(gym.Env):
         # Base environment provides zero reward. Wrappers add reward calculation.
         reward = 0.0
 
-        # Render if necessary
-        self.render()
-
         return observation, reward, terminated, truncated, info
 
     # --- Rendering Methods ---
@@ -436,9 +433,6 @@ class QuadrupedEnv(gym.Env):
         except IndexError:
              print("Warning: Ran out of geoms in MuJoCo scene for rendering point.")
 
-    def render_custom_geoms(self):
-        """Placeholder for wrappers to add custom visualizations during rendering."""
-        pass # Wrappers should override this if they need custom rendering
 
     def update_camera(self):
         """Updates the camera lookat point to follow the robot's base."""
@@ -478,9 +472,6 @@ class QuadrupedEnv(gym.Env):
         except mujoco.FatalError as e:
              print(f"Warning: MuJoCo error during scene update: {e}")
              return None # Skip rendering this frame
-
-        # Allow wrappers to add custom geoms
-        self.render_custom_geoms()
 
         # Get pixel data
         try:
