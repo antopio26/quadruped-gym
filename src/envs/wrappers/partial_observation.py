@@ -6,7 +6,7 @@ from collections import deque
 from typing import Optional, Dict, Any, Tuple
 
 from src.envs.wrappers.control_input import ControlInputWrapper
-from src.envs.wrappers.utils import find_wrapper_by_name
+from src.utils.envs import find_wrapper_by_name
 
 # AHRS for orientation estimation
 try:

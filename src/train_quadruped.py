@@ -66,7 +66,7 @@ if __name__ == '__main__':
     # Training parameters
     MODEL_CLASS = PPO # PPO, SAC, TD3, RecurrentPPO
     POLICY = "MlpPolicy" # "MlpPolicy" or "MlpLstmPolicy" for RecurrentPPO
-    TOTAL_TIMESTEPS_PER_LEARN = 5_000 # Timesteps per call to model.learn()
+    TOTAL_TIMESTEPS_PER_LEARN = 500_000 # Timesteps per call to model.learn()
     NUM_LEARN_CALLS = 20 # Total training = TOTAL_TIMESTEPS_PER_LEARN * NUM_LEARN_CALLS
     LEARN_KWARGS = {"progress_bar": True} # Add other SB3 learn kwargs if needed
     VERBOSE = 0 # Verbosity level for SB3 (0=none, 1=info, 2=debug)
@@ -85,7 +85,7 @@ if __name__ == '__main__':
     }
 
     # Evaluation parameters (for saving video)
-    EVAL_MAX_TIME = 30.0 # Longer time for evaluation video
+    EVAL_MAX_TIME = 20.0 # Longer time for evaluation video
     EVAL_RESET_OPTIONS = TRAIN_RESET_OPTIONS # Use same randomization for eval video, or define different ones
 
     # --- Setup Output Directories ---

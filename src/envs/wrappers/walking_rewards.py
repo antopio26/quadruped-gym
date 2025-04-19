@@ -4,7 +4,7 @@ import numpy as np
 from typing import Optional, Dict, Any, Tuple, List
 
 from src.utils.math import exp_dist, OnlineFrequencyAmplitudeEstimation
-from src.envs.wrappers.utils import find_wrapper_by_name
+from src.utils.envs import find_wrapper_by_name
 from src.envs.base_quad import QuadrupedEnv
 
 class WalkingRewardWrapper(gym.Wrapper):

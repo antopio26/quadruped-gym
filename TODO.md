@@ -10,7 +10,7 @@
 - [x] Make camera follow the robot
 
 - [x] ADD TERMINATION CONDITION - FOR FLIPPING
-- [ ] Fix bug with saving video when in rgb_array mode
+- [x] Fix bug with saving video when in rgb_array mode
 - [x] Check Velocity and Position reference frames
 
 - [x] !!! Reward based on position offset from an ideal trajectory !!!
@@ -18,10 +18,12 @@
 
 REALLY IMPORTANT as sums are analogous to logical OR operations while multiplications to logical ANDs
 
+!!!!!!!!!
 - [ ] Map rewards to 0-1 range to make them easly multibiable !!!
+!!!!!!!!!
+
 - [ ] Parametrize environment randomization
 
 - [ ] Move rewards_continuous.csv to logs folder
 
-!!!!!!!!!!!
-- [ ] Add render custom geometry back to the renderer and to the viewer
+- [x] Add render custom geometry back to the renderer and to the viewer
