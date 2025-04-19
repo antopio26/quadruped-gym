@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any, Tuple, List
 
 from src.utils.math import exp_dist, OnlineFrequencyAmplitudeEstimation
 from src.envs.wrappers.utils import find_wrapper_by_name
+from src.envs.base_quad import QuadrupedEnv
 
 class WalkingRewardWrapper(gym.Wrapper):
     """
@@ -48,7 +49,7 @@ class WalkingRewardWrapper(gym.Wrapper):
         # --- End of getting control logic ---
 
         # --- Task-Specific State ---
-        self.ideal_position = np.zeros(3, dtype=np.float64) # Integrated target position
+        self.ideal_position = np.zeros(3, dtype=np.float32) # Integrated target position
         # Initialize previous and current control states
         action_shape = self.env.action_space.shape[0]
         self.previous_ctrl = np.zeros(action_shape, dtype=np.float32)
@@ -84,14 +85,23 @@ class WalkingRewardWrapper(gym.Wrapper):
         if self._target_frequencies.shape != (self.env.action_space.shape[0],): raise ValueError("target_ctrl_frequencies shape mismatch")
         if self._target_amplitudes.shape != (self.env.action_space.shape[0],): raise ValueError("target_ctrl_amplitudes shape mismatch")
 
-    # --- End of added property ---
+        # Add render callback for reward visualizations
+        unwrapped_env = self.env.unwrapped
+        if isinstance(unwrapped_env, QuadrupedEnv): # Check if it's the base env
+             if hasattr(unwrapped_env, 'add_render_callback'):
+                 unwrapped_env.add_render_callback(self._render_reward_geoms_callback)
+             else:
+                 print("Warning: Base environment does not have 'add_render_callback'. Reward visualizations disabled.")
+        else:
+            print(f"Warning: Unwrapped env is not QuadrupedEnv ({type(unwrapped_env)}). Reward visualizations may not work.")
+
     
     def reset(self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Resets the environment and reward-specific state."""
         observation, info = self.env.reset(seed=seed, options=options) # Resets ControlInputWrapper too
 
         # Reset wrapper state based on state *after* env.reset()
-        self.ideal_position = self.env.unwrapped.get_body_position().astype(np.float64)
+        self.ideal_position = np.zeros(3, dtype=np.float32) # Reset ideal position
         # Get initial control state after reset
         initial_ctrl = self.env.unwrapped.get_control_inputs()
         self.previous_ctrl = initial_ctrl.copy()
@@ -150,29 +160,24 @@ class WalkingRewardWrapper(gym.Wrapper):
         else:
              print("Warning: Control logic does not have 'global_velocity'. Ideal position not updated.")
 
-    def render(self) -> Optional[np.ndarray]:
-        """Renders the environment and adds walking reward visualizations."""
-        # Render the underlying environment(s) first.
-        render_output = self.env.render()
-
-        # Add this wrapper's custom visualizations after the underlying render.
+    def _render_reward_geoms_callback(self):
+        """Callback function passed to the base environment for rendering."""
         unwrapped_env = self.env.unwrapped
-        # Check if rendering is active (renderer exists) in the base environment
-        if hasattr(unwrapped_env, 'renderer') and unwrapped_env.renderer is not None:
-            # Get the render_point helper function
-            render_point_func = getattr(unwrapped_env, 'render_point', None)
+        if not hasattr(unwrapped_env, 'renderer') or unwrapped_env.renderer is None:
+             return # Cannot render if renderer doesn't exist
 
-            # Render the ideal position marker if the function exists
-            if render_point_func and self.ideal_position is not None:
-                # print("[DEBUG] WalkingRewardWrapper rendering ideal position") # Optional debug print
-                render_point_func(
-                    position=self.ideal_position,
-                    color=[1.0, 0.0, 1.0, 0.8], # Magenta, slightly transparent
-                    radius=0.02
-                )
+        render_point_func = getattr(unwrapped_env, 'render_point', None)
 
-        # Return the output from the underlying render call
-        return render_output
+        if render_point_func and hasattr(self, 'ideal_position') and self.ideal_position is not None:
+            # print("[DEBUG] WalkingRewardWrapper rendering ideal position via callback") # Optional debug print
+            # Ensure color has alpha if render_point expects RGBA
+            color = [1.0, 0.0, 1.0, 0.8] # Magenta, slightly transparent
+            # The render_point in base_quad needs the RGBA fix from previous discussions
+            render_point_func(
+                position=self.ideal_position,
+                color=color, # Pass 4-element list/array
+                radius=0.01
+            )
 
     # --- Reward Component Functions (using public accessors via unwrapped env) ---
 

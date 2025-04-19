@@ -150,8 +150,8 @@ class VelocityHeadingControls(BaseControls):
         # --- Visualize Desired Global Velocity ---
         # Make velocity vector thicker and slightly offset upwards for visibility
         vel_color = [0.0, 0.8, 0.0, 0.8] # Green, slightly transparent
-        vel_scale = 1.0 # Scale velocity magnitude directly
-        vel_radius = 0.015
+        vel_scale = 0.5 # Scale velocity magnitude directly
+        vel_radius = 0.005
         vel_offset = 0.05 # Draw slightly above the origin point
         # Only draw if velocity magnitude is significant
         if np.linalg.norm(self.global_velocity) > 1e-3:
@@ -159,9 +159,9 @@ class VelocityHeadingControls(BaseControls):
 
         # --- Visualize Heading Direction ---
         # Draw a shorter, thinner vector for heading
-        head_color = [0.0, 0.0, 0.8, 0.8] # Blue, slightly transparent
-        head_scale = 0.3 # Fixed length for heading indicator
-        head_radius = 0.01
+        head_color = [0.8, 0.0, 0.0, 0.8] # Blue, slightly transparent
+        head_scale = 0.2 # Fixed length for heading indicator
+        head_radius = 0.005
         head_offset = 0.05 # Draw at the same offset as velocity
         render_vector_func(origin, self.heading, head_color, head_scale, head_radius, head_offset)
 

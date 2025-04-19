@@ -73,6 +73,9 @@ class QuadrupedEnv(gym.Env):
         
         self.renderer: Optional[mujoco.Renderer] = None
         self.viewer: Optional[mujoco.viewer.Handle] = None
+
+        # Render callbacks
+        self._render_callbacks: List[Callable[[], None]] = []
         
         self._sim_start_time: Optional[float] = None
         self._frame_count: int = 0
@@ -147,13 +150,14 @@ class QuadrupedEnv(gym.Env):
         self.data.qpos[3:7] = random_quat # Initial orientation (w, x, y, z quaternion)
 
         # Randomly set initial linear and angular velocities for the base
-        self.data.qvel[0:3] = np.random.uniform(-0.1, 0.1, size=(3,)) # Linear velocity
-        self.data.qvel[3:6] = np.random.uniform(-0.1, 0.1, size=(3,)) # Angular velocity
+        self.data.qvel[0:3] = self.np_random.uniform(-0.1, 0.1, size=(3,)) # Linear velocity
+        self.data.qvel[3:6] = self.np_random.uniform(-0.1, 0.1, size=(3,)) # Angular velocity
 
         # --- Joint Angle and Control Initialization ---
 
         # Define joint limits (radians) and control ranges based on quadruped.xml
         # Note: XML ranges are in degrees, converted here to radians.
+        # TODO: Consider reading these directly from the model if possible/reliable
         joint_limits_rad = {
             # <default class="hip"> range="-45 45"
             'hip':   (np.deg2rad(-45), np.deg2rad(45)),
@@ -186,11 +190,11 @@ class QuadrupedEnv(gym.Env):
             min_rad, max_rad = joint_limits_rad[joint_type]
             ctrl_min, ctrl_max = control_ranges[joint_type]
 
-            # 1. Generate random angle within joint limits
-            angle_rad = np.random.uniform(min_rad, max_rad)
+            # Generate random angle within joint limits
+            angle_rad = self.np_random.uniform(min_rad, max_rad)
             random_angles_rad[i] = angle_rad
 
-            # 2. Map the target angle (qpos) to the corresponding control value
+            # Map the target angle (qpos) to the corresponding control value
             joint_range_rad = max_rad - min_rad
             if abs(joint_range_rad) > 1e-6: # Avoid division by zero
                  norm_pos = (angle_rad - min_rad) / joint_range_rad
@@ -207,7 +211,7 @@ class QuadrupedEnv(gym.Env):
         self.data.qpos[qpos_start_idx : qpos_start_idx + num_actuated_joints] = random_angles_rad
 
         # Set the initial joint velocities (qvel)
-        self.data.qvel[qvel_start_idx : qvel_start_idx + num_actuated_joints] = np.random.uniform(-0.1, 0.1, size=num_actuated_joints) # Or just zeros
+        self.data.qvel[qvel_start_idx : qvel_start_idx + num_actuated_joints] = self.np_random.uniform(-0.1, 0.1, size=num_actuated_joints) # Or just zeros
 
         # Set the initial control signals (ctrl)
         self.data.ctrl[:] = control_values
@@ -230,6 +234,8 @@ class QuadrupedEnv(gym.Env):
         if combined_options.get("randomize_initial_state", False):
             self._randomize_initial_state()
         else:
+            # Set a default starting pose if not randomizing
+            self.data.qpos[2] = 0.12 # Start slightly above ground
             # Ensure a forward pass even if not randomizing, to set initial sensor values etc.
             mujoco.mj_forward(self.model, self.data)
 
@@ -401,38 +407,63 @@ class QuadrupedEnv(gym.Env):
 
     # --- Rendering Methods ---
 
+    def _get_active_scenes(self) -> Optional[mujoco.MjvScene]:
+        """Helper to get the scenes objects."""
+        scenes = []
+
+        # Check if renderer is initialized
+        if self.renderer is not None:
+            scenes.append(self.renderer.scene)
+
+        # Check if viewer is initialized
+        if self.viewer is not None:
+            scenes.append(self.viewer.user_scn)
+
+        if len(scenes) == 0:
+            print("Warning: No active scenes for rendering.")
+            return None
+
+        return scenes
+
+    # TODO: Streamline this to avoid multiple loops over the same scenes and make the render functions easier to write
+
     def render_vector(self, origin: np.ndarray, vector: np.ndarray, color: List[float], scale: float = 0.2, radius: float = 0.005, offset: float = 0.0):
         """Helper to render an arrow geometry in the scene."""
-        if self.renderer is None or self.renderer.scene is None: return
-        scn = self.renderer.scene
-        if scn.ngeom >= scn.maxgeom: return # Check geom buffer space
+        scns = self._get_active_scenes()
 
-        origin_offset = origin.copy() + np.array([0, 0, offset])
-        endpoint = origin_offset + (vector * scale)
-        idx = scn.ngeom
-        try:
-            mujoco.mjv_initGeom(scn.geoms[idx], mujoco.mjtGeom.mjGEOM_ARROW1, np.zeros(3), np.zeros(3), np.zeros(9), np.array(color, dtype=np.float32))
-            mujoco.mjv_connector(scn.geoms[idx], mujoco.mjtGeom.mjGEOM_ARROW1, radius, origin_offset, endpoint)
-            scn.ngeom += 1
-        except IndexError:
-             print("Warning: Ran out of geoms in MuJoCo scene for rendering vector.")
+        if scns is None: return # No active scenes
+
+        for scn in scns:
+            if scn.ngeom >= scn.maxgeom: return # Check geom buffer space
+
+            origin_offset = origin.copy() + np.array([0, 0, offset])
+            endpoint = origin_offset + (vector * scale)
+            idx = scn.ngeom
+            try:
+                mujoco.mjv_initGeom(scn.geoms[idx], mujoco.mjtGeom.mjGEOM_ARROW1, np.zeros(3), np.zeros(3), np.zeros(9), np.array(color, dtype=np.float32))
+                mujoco.mjv_connector(scn.geoms[idx], mujoco.mjtGeom.mjGEOM_ARROW1, radius, origin_offset, endpoint)
+                scn.ngeom += 1
+            except IndexError:
+                print("Warning: Ran out of geoms in MuJoCo scene for rendering vector.")
 
 
     def render_point(self, position: np.ndarray, color: List[float], radius: float = 0.01):
         """Helper to render a sphere geometry at a point."""
-        if self.renderer is None or self.renderer.scene is None: return
-        scn = self.renderer.scene
-        if scn.ngeom >= scn.maxgeom: return
+        scns = self._get_active_scenes()
 
-        idx = scn.ngeom
-        size = np.array([radius, radius, radius])
-        rgba = np.array(color, dtype=np.float32)
-        try:
-            mujoco.mjv_initGeom(scn.geoms[idx], mujoco.mjtGeom.mjGEOM_SPHERE, size, position.astype(np.float64), np.eye(3).flatten(), rgba)
-            scn.ngeom += 1
-        except IndexError:
-             print("Warning: Ran out of geoms in MuJoCo scene for rendering point.")
+        if scns is None: return # No active scenes
 
+        for scn in scns:    
+            if scn.ngeom >= scn.maxgeom: return
+
+            idx = scn.ngeom
+            size = np.array([radius, radius, radius])
+            rgba = np.array(color, dtype=np.float32)
+            try:
+                mujoco.mjv_initGeom(scn.geoms[idx], mujoco.mjtGeom.mjGEOM_SPHERE, size, position.astype(np.float64), np.eye(3).flatten(), rgba)
+                scn.ngeom += 1
+            except IndexError:
+                print("Warning: Ran out of geoms in MuJoCo scene for rendering point.")
 
     def update_camera(self):
         """Updates the camera lookat point to follow the robot's base."""
@@ -443,6 +474,13 @@ class QuadrupedEnv(gym.Env):
         if self.render_mode == "human" and self.viewer is not None and self.viewer.is_running():
             # self.viewer.cam.lookat[:] = robot_pos
             pass
+
+    def add_render_callback(self, callback: Callable[[], None]):
+        """Registers a function to be called during the render cycle."""
+        if callable(callback):
+            self._render_callbacks.append(callback)
+        else:
+            print("Warning: Tried to add a non-callable render callback.")
 
     def render(self) -> Optional[np.ndarray]:
         """Renders the environment based on the render_mode."""
@@ -469,6 +507,20 @@ class QuadrupedEnv(gym.Env):
         self.update_camera()
         try:
             self.renderer.update_scene(self.data, scene_option=self.scene_option, camera=self.camera)
+
+            if self.viewer is not None:
+                # Reset the user geom buffer for the viewer
+                self.viewer.user_scn.ngeom = 0
+
+            # Call registered render callbacks
+            for callback in self._render_callbacks:
+                    try:
+                        # Pass self in case the callback needs access to env methods directly
+                        # Or adjust callback signature if it only needs renderer/scene
+                        callback()
+                    except Exception as e:
+                        print(f"Warning: Error during render callback: {e}")
+
         except mujoco.FatalError as e:
              print(f"Warning: MuJoCo error during scene update: {e}")
              return None # Skip rendering this frame
@@ -479,7 +531,6 @@ class QuadrupedEnv(gym.Env):
         except mujoco.FatalError as e:
              print(f"Warning: MuJoCo error during rendering: {e}")
              return None # Skip rendering this frame
-
 
         # Save to video if enabled
         if self.save_video and self.video_writer is not None:

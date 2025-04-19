@@ -5,6 +5,7 @@ from typing import Type, Optional, Dict, Any, Tuple
 
 # Assuming BaseControls exists and has sample(), get_obs(), obs_size, render_geoms() etc.
 from src.controls.base_controls import BaseControls
+from src.envs.base_quad import QuadrupedEnv
 
 class ControlInputWrapper(gym.Wrapper):
     """
@@ -44,6 +45,16 @@ class ControlInputWrapper(gym.Wrapper):
              raise AttributeError(f"Control logic class {control_logic_class.__name__} must have an 'obs_size' attribute.")
         self._control_obs_size: int = self.control_logic.obs_size
 
+        # Check if the environment has a method to add render callbacks
+        unwrapped_env = self.env.unwrapped
+        if isinstance(unwrapped_env, QuadrupedEnv): # Check if it's the base env
+             if hasattr(unwrapped_env, 'add_render_callback'):
+                 unwrapped_env.add_render_callback(self._render_control_geoms_callback)
+             else:
+                 print("Warning: Base environment does not have 'add_render_callback'. Control visualizations disabled.")
+        else:
+            print(f"Warning: Unwrapped env is not QuadrupedEnv ({type(unwrapped_env)}). Control visualizations may not work.")
+
     def reset(self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Resets the environment and samples initial control inputs."""
         observation, info = self.env.reset(seed=seed, options=options)
@@ -81,38 +92,29 @@ class ControlInputWrapper(gym.Wrapper):
 
         return observation, reward, terminated, truncated, info
     
-    # --- Override render ---
-    def render(self) -> Optional[np.ndarray]:
-        """Renders the environment and adds control visualizations."""
-        # Render the underlying environment(s) first.
-        render_output = self.env.render()
-
-        # Add this wrapper's custom visualizations after the base render.
-        # We need access to the renderer and helper methods from the base env.
+    def _render_control_geoms_callback(self):
+        """Callback function passed to the base environment for rendering."""
+        # This method will be called by QuadrupedEnv.render()
+        # Ensure renderer exists before trying to use helpers
         unwrapped_env = self.env.unwrapped
-        # Check if rendering is active (renderer exists) in the base environment
-        if hasattr(unwrapped_env, 'renderer') and unwrapped_env.renderer is not None:
-            # Check if the control logic has a rendering method
-            if hasattr(self.control_logic, 'render_geoms'):
-                # Get necessary info from the base environment
-                origin = unwrapped_env.get_body_position()
-                # Get base environment's render helper functions
-                render_vector_func = getattr(unwrapped_env, 'render_vector', None)
-                render_point_func = getattr(unwrapped_env, 'render_point', None)
+        if not hasattr(unwrapped_env, 'renderer') or unwrapped_env.renderer is None:
+             return # Cannot render if renderer doesn't exist
 
-                # Ensure the helper functions exist before calling render_geoms
-                if render_vector_func and render_point_func:
-                    # print("[DEBUG] ControlInputWrapper rendering control geoms") # Optional debug print
-                    self.control_logic.render_geoms(
-                        origin=origin,
-                        render_vector_func=render_vector_func,
-                        render_point_func=render_point_func
-                        # Pass the renderer scene if needed by render_geoms
-                        # scene=unwrapped_env.renderer.scene
-                    )
+        if hasattr(self.control_logic, 'render_geoms'):
+            # Get necessary info and helpers *directly* from unwrapped_env
+            # This assumes render_vector/point exist on the unwrapped_env
+            origin = unwrapped_env.get_body_position()
+            render_vector_func = getattr(unwrapped_env, 'render_vector', None)
+            render_point_func = getattr(unwrapped_env, 'render_point', None)
 
-        # Return the output from the underlying render call (e.g., pixel array or None)
-        return render_output
+            if render_vector_func and render_point_func:
+                # print("[DEBUG] ControlInputWrapper rendering control geoms via callback") # Optional debug print
+                self.control_logic.render_geoms(
+                    origin=origin,
+                    render_vector_func=render_vector_func,
+                    render_point_func=render_point_func
+                    # No need to pass scene, helpers use unwrapped_env.renderer.scene
+                )
 
     # --- Expose control logic object ---
     @property
