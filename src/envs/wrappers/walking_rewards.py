@@ -171,7 +171,7 @@ class WalkingRewardWrapper(gym.Wrapper):
         if render_point_func and hasattr(self, 'ideal_position') and self.ideal_position is not None:
             # print("[DEBUG] WalkingRewardWrapper rendering ideal position via callback") # Optional debug print
             # Ensure color has alpha if render_point expects RGBA
-            color = [1.0, 0.0, 1.0, 0.8] # Magenta, slightly transparent
+            color = [1.0, 0.0, 1.0, 1.0] # Magenta, slightly transparent
             # The render_point in base_quad needs the RGBA fix from previous discussions
             render_point_func(
                 position=self.ideal_position,
@@ -254,9 +254,8 @@ class WalkingRewardWrapper(gym.Wrapper):
             derived_rewards_values = np.zeros_like(rewards_to_derive_values)
             self.previous_rewards_to_derive = rewards_to_derive_values.copy() # Use copy
         else:
-            # <<< TODO: Fix dt calculation - self.model and self.frame_skip might not exist here
-            # dt = self.model.opt.timestep * self.frame_skip # This likely needs fixing
-            dt = self.env.unwrapped.get_dt() # Safer way to get dt
+            # Calculate the derivative of the rewards to derive
+            dt = self.env.unwrapped.get_dt()
             derived_rewards_values = (rewards_to_derive_values - self.previous_rewards_to_derive) / dt
             # Update for the next step
             self.previous_rewards_to_derive = rewards_to_derive_values.copy() # Use copy

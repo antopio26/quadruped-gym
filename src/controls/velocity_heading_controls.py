@@ -149,27 +149,18 @@ class VelocityHeadingControls(BaseControls):
         """
         # --- Visualize Desired Global Velocity ---
         # Make velocity vector thicker and slightly offset upwards for visibility
-        vel_color = [0.0, 0.8, 0.0, 0.8] # Green, slightly transparent
+        vel_color = [0.0, 0.8, 0.0, 1.0] # Green, slightly transparent
         vel_scale = 0.5 # Scale velocity magnitude directly
         vel_radius = 0.005
-        vel_offset = 0.05 # Draw slightly above the origin point
+        vel_offset = 0.11 # Draw slightly above the origin point
         # Only draw if velocity magnitude is significant
         if np.linalg.norm(self.global_velocity) > 1e-3:
             render_vector_func(origin, self.global_velocity, vel_color, vel_scale, vel_radius, vel_offset)
 
         # --- Visualize Heading Direction ---
         # Draw a shorter, thinner vector for heading
-        head_color = [0.8, 0.0, 0.0, 0.8] # Blue, slightly transparent
+        head_color = [0.8, 0.0, 0.0, 1.0] # Blue, slightly transparent
         head_scale = 0.2 # Fixed length for heading indicator
         head_radius = 0.005
-        head_offset = 0.05 # Draw at the same offset as velocity
+        head_offset = 0.11 # Draw at the same offset as velocity
         render_vector_func(origin, self.heading, head_color, head_scale, head_radius, head_offset)
-
-        # --- Optional: Visualize Local Velocity (relative to heading) ---
-        # To visualize this, we need the robot's current orientation matrix
-        # This is more complex as it requires getting the rotation matrix from the env
-        # and rotating the local velocity vector into the global frame *before* rendering.
-        # Example (requires access to robot's rotation matrix `rot_matrix`):
-        # global_local_vel = rot_matrix @ self.velocity
-        # local_vel_color = [0.8, 0.0, 0.0, 0.8] # Red
-        # render_vector_func(origin, global_local_vel, local_vel_color, vel_scale, vel_radius, vel_offset + 0.01) # Slightly higher offset
