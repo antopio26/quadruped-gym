@@ -6,7 +6,7 @@
     <default>
         <default class="quadruped">
             <geom type="mesh" material="robot_material" friction="0.6" margin="0.001"/>
-            <joint axis="0 0 1" type="hinge" damping="0.2" armature="0.001"/>
+            <joint axis="0 0 1" type="hinge" damping="0.1" armature="0.001"/>
             <position   ctrlrange="-1 1"
                         forcerange="-1.71 1.71"
                         kp="100"

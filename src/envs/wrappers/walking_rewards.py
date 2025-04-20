@@ -3,8 +3,9 @@ import gymnasium as gym
 import numpy as np
 from typing import Optional, Dict, Any, Tuple, List
 
-from src.utils.math import exp_dist, OnlineFrequencyAmplitudeEstimation
+from src.utils.math_utils import exp_dist, OnlineFrequencyAmplitudeEstimation
 from src.utils.envs import find_wrapper_by_name
+from src.utils.rewards import tolerance
 from src.envs.base_quad import QuadrupedEnv
 
 class WalkingRewardWrapper(gym.Wrapper):
@@ -52,7 +53,7 @@ class WalkingRewardWrapper(gym.Wrapper):
         self.ideal_position = np.zeros(3, dtype=np.float32) # Integrated target position
         # Initialize previous and current control states
         action_shape = self.env.action_space.shape[0]
-        self.previous_ctrl = np.zeros(action_shape, dtype=np.float32)
+        self.previous_ctrl = np.ones(action_shape, dtype=np.float32)
         self.current_ctrl = np.zeros(action_shape, dtype=np.float32)
         self.previous_rewards_to_derive = None # For derivative-based rewards
 
@@ -104,7 +105,7 @@ class WalkingRewardWrapper(gym.Wrapper):
         self.ideal_position = np.zeros(3, dtype=np.float32) # Reset ideal position
         # Get initial control state after reset
         initial_ctrl = self.env.unwrapped.get_control_inputs()
-        self.previous_ctrl = initial_ctrl.copy()
+        self.previous_ctrl = np.zeros_like(initial_ctrl, dtype=np.float32) # Reset previous control
         self.current_ctrl = initial_ctrl.copy()
         self.previous_rewards_to_derive = None
         self.frequency_amplitude_estimator.reset()
@@ -220,7 +221,7 @@ class WalkingRewardWrapper(gym.Wrapper):
         """Calculates the cost based on the change in control inputs from the previous step."""
         # Compares controls applied in this step (self.current_ctrl) vs previous (self.previous_ctrl)
         control_diff = self.current_ctrl - self.previous_ctrl
-        cost = np.sum(np.square(control_diff))
+        cost = np.sum(np.square(control_diff)) / self.env.action_space.shape[0] if self.env.action_space.shape[0] > 0 else 0.0
         return float(cost)
 
     def _control_frequency_cost(self) -> float:
@@ -245,7 +246,7 @@ class WalkingRewardWrapper(gym.Wrapper):
         """
         # Calculate rewards to derive *first*
         rewards_to_derive_values = np.array([
-            -20.0 * self._ideal_position_cost()
+            self._ideal_position_cost()
             # Add other rewards to derive here if needed
         ])
 
@@ -260,18 +261,52 @@ class WalkingRewardWrapper(gym.Wrapper):
             # Update for the next step
             self.previous_rewards_to_derive = rewards_to_derive_values.copy() # Use copy
 
+
+        # --- Map the reward components between 0 and 1 using dm_control tolerance function ---
+        control_cost = tolerance(
+            self._control_cost(),
+            bounds=(0.1, 0.2),
+            margin=0.5
+        )
+
+        diff_ideal_position_cost = tolerance(
+            derived_rewards_values[0], # Access the calculated derivative
+            bounds=(0.5, np.inf),
+            margin=0.5,
+            sigmoid='long_tail',
+        )
+
+        ideal_position_cost = tolerance(
+            self._ideal_position_cost(),
+            bounds=(0.0, 0.02),
+            margin=0.5,
+            sigmoid='long_tail',
+        )
+
+        
+
+        heading_reward = tolerance(
+            self._heading_reward(),
+            bounds=(0.9, 1.0),
+            margin=1.0,
+            sigmoid='long_tail',
+        )
+
+        orientation_reward = tolerance(
+            self._orientation_reward(),
+            bounds=(0.9, 1.0),
+            margin=1.0,
+            sigmoid='long_tail',
+        )
+
         # --- Define the components ---
         components = {
-            'alive_bonus': +1.0 * self._alive_bonus(),
-            'control_cost': -2.0 * self._control_cost(),
-            'diff_ideal_position_cost': derived_rewards_values[0], # Access the calculated derivative
-            'orientation_reward': +5.0 * exp_dist(self._orientation_reward()),
-            'heading_reward': +3.0 * exp_dist(self._heading_reward()),
-            # --- Example: Add other costs back if needed ---
-            # 'body_height_cost': -10.0 * self._body_height_cost(),
-            # 'joint_posture_cost': -1.0 * self._joint_posture_cost(),
-            # 'control_frequency_cost': -0.5 * self._control_frequency_cost(),
-            # 'control_amplitude_cost': -0.5 * self._control_amplitude_cost(),
+            'ideal_position_cost': 0.1 * ideal_position_cost,
+            'heading_reward': 0.1 * heading_reward,
+            'orientation_reward': 0.3 * orientation_reward,
+            'combined_reward': 0.4 * diff_ideal_position_cost * heading_reward,
+            'control_cost': 0.1 * control_cost,
+            # 'diff_ideal_position_cost': diff_ideal_position_cost, # This acts as a feedforward
         }
 
         return components

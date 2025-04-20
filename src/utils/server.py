@@ -344,5 +344,5 @@ def launch_dash(csv_file_path):
     app.run(debug=True, port=8050, host='0.0.0.0')
 
 if __name__ == '__main__':
-    csv_file_path = '../rewards_continuous.csv'
+    csv_file_path = '../../rewards_continuous.csv'
     launch_dash(csv_file_path)
