@@ -8,6 +8,7 @@ from gymnasium import spaces
 import cv2
 import mujoco.viewer
 from typing import Optional, Dict, Callable, Any, Tuple, List
+from src.utils.math_utils import generate_random_quaternion
 
 class QuadrupedEnv(gym.Env):
     """
@@ -142,11 +143,11 @@ class QuadrupedEnv(gym.Env):
         """Randomly initializes orientation, joint angles, velocities, and controls."""
         # --- Orientation and Base Velocity ---
         self.data.qpos[0:3] = [0, 0, 0.25] # Start slightly above ground
-        random_quat = self.np_random.standard_normal(4) # Use Gym's RNG
-        random_quat /= np.linalg.norm(random_quat)
-        # Ensure the scalar component (w) is positive if needed, though MuJoCo handles both q and -q as the same rotation.
-        # if random_quat[0] < 0:
-        #     random_quat *= -1
+        
+        mean_axis = np.array([0, 0, 1])  # Default to z-up
+        max_angle_variation = np.deg2rad(45)  # Maximum angle variation in radians
+        random_quat = generate_random_quaternion(mean_axis, max_angle_variation)
+        
         self.data.qpos[3:7] = random_quat # Initial orientation (w, x, y, z quaternion)
 
         # Randomly set initial linear and angular velocities for the base
@@ -300,7 +301,7 @@ class QuadrupedEnv(gym.Env):
         return self._get_vec3_sensor("body_gyro").copy()
 
     def get_body_linear_velocity(self) -> np.ndarray:
-        """Returns the body linear velocity in the global frame."""
+        """Returns the body linear velocity in the local frame."""
         return self._get_vec3_sensor("body_vel").copy()
 
     def get_body_position(self) -> np.ndarray:

@@ -10,6 +10,35 @@ def unit(x):
     else:
         return x / np.linalg.norm(x)
 
+def generate_random_quaternion(mean_axis: np.ndarray, max_angle: float) -> np.ndarray:
+    """
+    Generates a random quaternion starting from a given mean axis with a maximum angle variation.
+
+    Args:
+        mean_axis (np.ndarray): The mean axis (3D vector) to rotate around.
+        max_angle (float): Maximum angle variation in radians.
+
+    Returns:
+        np.ndarray: A quaternion (w, x, y, z) representing the rotation.
+    """
+    # Normalize the mean axis
+    mean_axis = mean_axis / np.linalg.norm(mean_axis)
+
+    # Generate a random axis of rotation perpendicular to the mean axis
+    random_axis = np.random.normal(size=3)
+    random_axis -= random_axis.dot(mean_axis) * mean_axis  # Make it perpendicular to the mean axis
+    random_axis /= np.linalg.norm(random_axis)  # Normalize the axis
+
+    # Generate a random angle within the maximum angle variation
+    random_angle = np.random.uniform(-max_angle, max_angle)
+
+    # Construct the quaternion (w, x, y, z) for the rotation
+    half_angle = random_angle / 2
+    w = np.cos(half_angle)
+    xyz = random_axis * np.sin(half_angle)
+    quaternion = np.array([w, xyz[0], xyz[1], xyz[2]])
+
+    return quaternion
 
 class OnlineFrequencyAmplitudeEstimation:
     def __init__(self, n_channels, dt=0.01, ema_alpha=0.95, min_freq=None, window_size=None):

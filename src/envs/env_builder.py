@@ -7,7 +7,7 @@ import gymnasium as gym
 from src.envs.base_quad import QuadrupedEnv
 from src.envs.wrappers.control_input import ControlInputWrapper
 from src.envs.wrappers.partial_observation import PartialObservationWrapper
-from src.envs.wrappers.walking_rewards import WalkingRewardWrapper
+from src.envs.wrappers.sequenced_rewards import SequencesRewardWrapper
 from src.controls.velocity_heading_controls import VelocityHeadingControls # Example control logic
 
 def create_quadruped_env(
@@ -23,9 +23,6 @@ def create_quadruped_env(
     reset_options: Optional[Dict[str, Any]] = None,
     # Wrapper specific args
     obs_window: int = 1,
-    target_joint_posture: Optional[np.ndarray] = None,
-    target_ctrl_frequencies: Optional[np.ndarray] = None,
-    target_ctrl_amplitudes: Optional[np.ndarray] = None,
     control_logic_class = VelocityHeadingControls, # Allow specifying control logic
     control_kwargs: Optional[Dict[str, Any]] = None, # Args for control logic constructor
     add_reward_wrapper: bool = True, # Option to skip reward wrapper if not needed
@@ -39,7 +36,7 @@ def create_quadruped_env(
         # Wrapper args... (see above)
         control_logic_class: The class for control logic (e.g., VelocityHeadingControls).
         control_kwargs: Arguments to pass to the control_logic_class constructor.
-        add_reward_wrapper: If True, adds the WalkingRewardWrapper.
+        add_reward_wrapper: If True, adds the SequencedRewardWrapper.
         add_po_wrapper: If True, adds the PartialObservationWrapper.
 
     Returns:
@@ -79,12 +76,8 @@ def create_quadruped_env(
 
     # 4. Walking Reward Wrapper (Optional)
     if add_reward_wrapper:
-        env = WalkingRewardWrapper(
-            env=env,
-            target_joint_posture=target_joint_posture,
-            target_ctrl_frequencies=target_ctrl_frequencies,
-            target_ctrl_amplitudes=target_ctrl_amplitudes
-            # Control logic is accessed via env.current_controls
+        env = SequencesRewardWrapper(
+            env=env
         )
 
     return env

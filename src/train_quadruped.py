@@ -50,7 +50,7 @@ def make_env(rank: int, seed: int = 0, env_options: dict = None):
 if __name__ == '__main__':
     # --- Configuration ---
     REAL_TIME_PLOT = False # Set to True for live plotting (can be slow)
-    OUTPUT_FOLDER = './policies/po_dm_sac_v2' # Choose a new folder name
+    OUTPUT_FOLDER = './policies/po_seq_sac_v2' # Choose a new folder name
     MODEL_FILENAME = 'policy.zip'
     STEPS_FILENAME = 'steps.txt'
     LOGS_SUBDIR = 'logs'
