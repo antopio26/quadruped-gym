@@ -10,13 +10,15 @@ def unit(x):
     else:
         return x / np.linalg.norm(x)
 
-def generate_random_quaternion(mean_axis: np.ndarray, max_angle: float) -> np.ndarray:
+def generate_random_quaternion(mean_axis: np.ndarray, max_axis_angle: float, max_rotation_angle: float) -> np.ndarray:
     """
-    Generates a random quaternion starting from a given mean axis with a maximum angle variation.
+    Generates a random quaternion starting from a given mean axis with a maximum axis deviation
+    and a maximum rotation about that axis.
 
     Args:
         mean_axis (np.ndarray): The mean axis (3D vector) to rotate around.
-        max_angle (float): Maximum angle variation in radians.
+        max_axis_angle (float): Maximum angle (in radians) the axis can deviate from the mean axis.
+        max_rotation_angle (float): Maximum rotation angle (in radians) about the chosen axis.
 
     Returns:
         np.ndarray: A quaternion (w, x, y, z) representing the rotation.
@@ -24,21 +26,56 @@ def generate_random_quaternion(mean_axis: np.ndarray, max_angle: float) -> np.nd
     # Normalize the mean axis
     mean_axis = mean_axis / np.linalg.norm(mean_axis)
 
-    # Generate a random axis of rotation perpendicular to the mean axis
-    random_axis = np.random.normal(size=3)
-    random_axis -= random_axis.dot(mean_axis) * mean_axis  # Make it perpendicular to the mean axis
+    # Generate a random axis within the max_axis_angle deviation
+    random_angle = np.random.uniform(0, max_axis_angle)
+    random_direction = np.random.uniform(0, 2 * np.pi)  # Random direction around the mean axis
+
+    # Create a perpendicular vector to the mean axis
+    if np.allclose(mean_axis, [1, 0, 0]):  # Handle edge case where mean_axis is [1, 0, 0]
+        perp_vector = np.array([0, 1, 0])
+    else:
+        perp_vector = np.cross(mean_axis, [1, 0, 0])
+        perp_vector /= np.linalg.norm(perp_vector)
+
+    # Rotate the perpendicular vector around the mean axis by the random direction
+    rotation_quat = np.array([
+        np.cos(random_direction / 2),
+        *(np.sin(random_direction / 2) * mean_axis)
+    ])
+    rotated_perp_vector = rotate_vector(perp_vector, rotation_quat)
+
+    # Scale the rotated perpendicular vector by the random angle
+    random_axis = np.cos(random_angle) * mean_axis + np.sin(random_angle) * rotated_perp_vector
     random_axis /= np.linalg.norm(random_axis)  # Normalize the axis
 
-    # Generate a random angle within the maximum angle variation
-    random_angle = np.random.uniform(-max_angle, max_angle)
+    # Generate a random rotation angle about the chosen axis
+    rotation_angle = np.random.uniform(-max_rotation_angle, max_rotation_angle)
 
-    # Construct the quaternion (w, x, y, z) for the rotation
-    half_angle = random_angle / 2
+    # Construct the quaternion for the rotation about the random axis
+    half_angle = rotation_angle / 2
     w = np.cos(half_angle)
     xyz = random_axis * np.sin(half_angle)
     quaternion = np.array([w, xyz[0], xyz[1], xyz[2]])
 
     return quaternion
+
+
+def rotate_vector(vector: np.ndarray, quaternion: np.ndarray) -> np.ndarray:
+    """
+    Rotates a vector using a quaternion.
+
+    Args:
+        vector (np.ndarray): The vector to rotate.
+        quaternion (np.ndarray): The quaternion (w, x, y, z) representing the rotation.
+
+    Returns:
+        np.ndarray: The rotated vector.
+    """
+    w, x, y, z = quaternion
+    q_vec = np.array([x, y, z])
+    uv = np.cross(q_vec, vector)
+    uuv = np.cross(q_vec, uv)
+    return vector + 2 * (w * uv + uuv)
 
 class OnlineFrequencyAmplitudeEstimation:
     def __init__(self, n_channels, dt=0.01, ema_alpha=0.95, min_freq=None, window_size=None):

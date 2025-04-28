@@ -145,8 +145,9 @@ class QuadrupedEnv(gym.Env):
         self.data.qpos[0:3] = [0, 0, 0.25] # Start slightly above ground
         
         mean_axis = np.array([0, 0, 1])  # Default to z-up
-        max_angle_variation = np.deg2rad(45)  # Maximum angle variation in radians
-        random_quat = generate_random_quaternion(mean_axis, max_angle_variation)
+        max_axis_angle = np.deg2rad(45)  # Maximum angle variation in radians
+        max_rotation_angle = np.deg2rad(0)  # Maximum rotation angle in radians
+        random_quat = generate_random_quaternion(mean_axis, max_axis_angle, max_rotation_angle)
         
         self.data.qpos[3:7] = random_quat # Initial orientation (w, x, y, z quaternion)
 

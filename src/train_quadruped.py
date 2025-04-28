@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import pandas as pd
 from stable_baselines3 import PPO, SAC, TD3
-# from sb3_contrib import RecurrentPPO # Uncomment if using LSTM
+from sb3_contrib import RecurrentPPO # Uncomment if using LSTM
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from stable_baselines3.common.env_util import make_vec_env
 
@@ -50,7 +50,7 @@ def make_env(rank: int, seed: int = 0, env_options: dict = None):
 if __name__ == '__main__':
     # --- Configuration ---
     REAL_TIME_PLOT = False # Set to True for live plotting (can be slow)
-    OUTPUT_FOLDER = './policies/po_seq_sac_v2' # Choose a new folder name
+    OUTPUT_FOLDER = './policies/po_vel_fixed_sac_v0' # Choose a new folder name
     MODEL_FILENAME = 'policy.zip'
     STEPS_FILENAME = 'steps.txt'
     LOGS_SUBDIR = 'logs'
@@ -68,18 +68,18 @@ if __name__ == '__main__':
     POLICY = "MlpPolicy" # "MlpPolicy" or "MlpLstmPolicy" for RecurrentPPO
     TOTAL_TIMESTEPS_PER_LEARN = 100_000 # Timesteps per call to model.learn()
     NUM_LEARN_CALLS = 50 # Total training = TOTAL_TIMESTEPS_PER_LEARN * NUM_LEARN_CALLS
-    LEARN_KWARGS = {"progress_bar": True} # Add other SB3 learn kwargs if needed
-    VERBOSE = 0 # Verbosity level for SB3 (0=none, 1=info, 2=debug)
+    LEARN_KWARGS = {"progress_bar": True} # Add other learn kwargs if needed
+    VERBOSE = 0 # Verbosity level (0=none, 1=info, 2=debug)
 
     # Reset options for training (passed to ControlInputWrapper.sample)
     TRAIN_RESET_OPTIONS = {
         'randomize_initial_state': True, # Randomize base pose/velocity in BaseQuadrupedEnv
         'control_inputs': {             # Options for ControlInputWrapper.sample
-            'min_speed': 0.0,
-            'max_speed': 0.4,
-            'fixed_heading_angle': None,    # Random heading
-            'fixed_velocity_angle': None,   # Random local velocity angle
-            'fixed_speed': None             # Random speed
+            # 'min_speed': 0.0,
+            # 'max_speed': 0.4,
+            'fixed_heading_angle': 0.0,
+            'fixed_velocity_angle': 0.0,
+            'fixed_speed': 0.4
         }
         # Add other BaseQuadrupedEnv reset options if needed
     }

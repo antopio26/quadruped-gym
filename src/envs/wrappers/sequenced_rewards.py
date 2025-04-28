@@ -15,7 +15,7 @@ def dot_product_tolerance(x):
         bounds=(1.0, np.inf),
         margin=2.0,
         value_at_margin=0.0,
-        sigmoid='cosine' # Use cosine for finite support
+        sigmoid='linear' # Use cosine or linear for finite support
     )
 
 class SequencesRewardWrapper(gym.Wrapper):
@@ -86,7 +86,7 @@ class SequencesRewardWrapper(gym.Wrapper):
 
         # --- Calculate Reward Components ---
         reward_components = self._calculate_reward_components()
-        total_reward = sum(reward_components.values())
+        total_reward = sum(reward_components.values()) / len(reward_components) # Average reward
 
         # Update info dictionary with reward components
         info.update(reward_components)
@@ -130,11 +130,18 @@ class SequencesRewardWrapper(gym.Wrapper):
         return float(0.2 * zaxis + 0.8 * zaxis * height_reward)
 
     def _control_cost(self) -> float:
-        """Calculates the cost based on the change in control inputs from the previous step."""
-        # Compares controls applied in this step (self.current_ctrl) vs previous (self.previous_ctrl)
-        control_diff = self.current_ctrl - self.previous_ctrl
-        cost = np.sum(np.square(control_diff)) / self.env.action_space.shape[0] if self.env.action_space.shape[0] > 0 else 0.0
-        return float(cost)
+        """Calculates the cost based on the magnitude of joint velocities."""
+        joint_velocities = self.env.unwrapped.get_joint_velocities()
+        cost = np.sum(np.square(joint_velocities))
+        # Normalize by number of joints
+        num_joints = len(joint_velocities)
+        if num_joints > 0:
+            cost /= num_joints
+
+        # This cost needs to be mapped to a reward (0 to 1),
+        # where lower cost is better (higher reward).
+        # We apply the tolerance mapping in _calculate_reward_components.
+        return float(cost) # Return the raw cost here
 
     def _velocity_reward(self) -> float:
         """Calculates the reward based on the velocity."""
@@ -165,6 +172,27 @@ class SequencesRewardWrapper(gym.Wrapper):
                             0.7 * mapped_direction_reward * mapped_speed_reward )
         
         return float(combined_reward)
+    
+    def _speed_reward(self) -> float:
+        """Calculates the reward based on the speed."""
+        # Get the current velocity of the body
+        vel = self.env.unwrapped.get_body_linear_velocity()[:2] # Get only x and y components
+        vel_norm = np.linalg.norm(vel)
+
+        # Get target velocity
+        target_vel = self.control_logic.velocity[:2] # Get only x and y components
+        target_vel_norm = np.linalg.norm(target_vel)
+
+        # Calculate speed component
+        speed_reward = tolerance(
+            vel_norm,
+            bounds=(target_vel_norm, target_vel_norm),
+            margin=target_vel_norm,
+            value_at_margin=0,
+            sigmoid='linear'
+        )
+
+        return float(speed_reward)
 
     # --- Reward Aggregation ---
 
@@ -177,20 +205,21 @@ class SequencesRewardWrapper(gym.Wrapper):
         # --- Map the reward components between 0 and 1 using dm_control tolerance function ---
         control_cost = tolerance(
             self._control_cost(),
-            bounds=(0.1, 0.2),
-            margin=0.5
+            bounds=(-np.inf, 0.1),
+            margin=0.5,
+            value_at_margin=0.1,
+            sigmoid='long_tail'
         )
-    
+
         orientation_reward = self._orientation_reward()     # R_o
         heading_reward = self._heading_reward()             # R_h
         velocity_reward = self._velocity_reward()           # R_v
 
         # --- Define the components ---
         components = {
-            "orientation_step": 0.1 * orientation_reward,
-            "heading_step": 0.4 * orientation_reward * heading_reward,
-            # "velocity_step": 0.5 * orientation_reward * heading_reward * velocity_reward
-            "velocity_step": 0.5 * orientation_reward * velocity_reward
+            "orientation_step": orientation_reward,
+            "heading_step": orientation_reward * heading_reward, # * control_cost,
+            "velocity_step": orientation_reward * heading_reward * velocity_reward # * control_cost,
         }
 
         return components
