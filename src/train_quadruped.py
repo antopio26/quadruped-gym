@@ -50,7 +50,7 @@ def make_env(rank: int, seed: int = 0, env_options: dict = None):
 if __name__ == '__main__':
     # --- Configuration ---
     REAL_TIME_PLOT = False # Set to True for live plotting (can be slow)
-    OUTPUT_FOLDER = './policies/po_vel_fixed_sac_v0' # Choose a new folder name
+    OUTPUT_FOLDER = './policies/po_vel_ppo_v0' # Choose a new folder name
     MODEL_FILENAME = 'policy.zip'
     STEPS_FILENAME = 'steps.txt'
     LOGS_SUBDIR = 'logs'
@@ -64,9 +64,9 @@ if __name__ == '__main__':
     CONTROL_LOGIC = VelocityHeadingControls
 
     # Training parameters
-    MODEL_CLASS = SAC # PPO, SAC, TD3, RecurrentPPO
+    MODEL_CLASS = PPO # PPO, SAC, TD3, RecurrentPPO
     POLICY = "MlpPolicy" # "MlpPolicy" or "MlpLstmPolicy" for RecurrentPPO
-    TOTAL_TIMESTEPS_PER_LEARN = 100_000 # Timesteps per call to model.learn()
+    TOTAL_TIMESTEPS_PER_LEARN = 500_000 # Timesteps per call to model.learn()
     NUM_LEARN_CALLS = 50 # Total training = TOTAL_TIMESTEPS_PER_LEARN * NUM_LEARN_CALLS
     LEARN_KWARGS = {"progress_bar": True} # Add other learn kwargs if needed
     VERBOSE = 0 # Verbosity level (0=none, 1=info, 2=debug)
@@ -74,9 +74,18 @@ if __name__ == '__main__':
     # Reset options for training (passed to ControlInputWrapper.sample)
     TRAIN_RESET_OPTIONS = {
         'randomize_initial_state': True, # Randomize base pose/velocity in BaseQuadrupedEnv
+        'initial_state_options': {
+            'start_height': 0.25,
+            'mean_z_axis': [0, 0, 1],
+            'max_z_axis_variation': 45,
+            'max_z_axis_rotation_angle': 20,
+            'max_linear_velocity': 0.1,
+            'max_angular_velocity': 0.1,
+            'randomize_joint_angles': True
+        },
         'control_inputs': {             # Options for ControlInputWrapper.sample
             # 'min_speed': 0.0,
-            # 'max_speed': 0.4,
+            # 'max_speed': 0.5,
             'fixed_heading_angle': 0.0,
             'fixed_velocity_angle': 0.0,
             'fixed_speed': 0.4
@@ -249,6 +258,7 @@ if __name__ == '__main__':
             "width": 720,
             "height": 480,
         }
+
         eval_env = create_quadruped_env(**eval_env_options)
 
         try:
@@ -257,7 +267,7 @@ if __name__ == '__main__':
             truncated = False
             eval_step_count = 0
             while not done and not truncated:
-                action, _state = model.predict(obs, deterministic=True)
+                action, _state = model.predict(obs, deterministic=False)
                 obs, reward, terminated, truncated, info = eval_env.step(action)
                 eval_env.render()
                 done = terminated

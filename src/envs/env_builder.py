@@ -28,7 +28,7 @@ def create_quadruped_env(
     add_reward_wrapper: bool = True, # Option to skip reward wrapper if not needed
     add_po_wrapper: bool = True, # Option to skip PO wrapper if not needed
     use_velocity_wrapper: bool = True, # Option to use the velocity wrapper
-    max_joint_speed: float = 20, # Max speed for velocity wrapper (unit/s)
+    max_joint_speed: float = 5, # Max speed for velocity wrapper (unit/s)
 ) -> gym.Env:
     """
     Builds the wrapped Quadruped environment stack.

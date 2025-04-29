@@ -8,28 +8,31 @@ from src.utils.envs import find_wrapper_by_name
 from src.utils.rewards import tolerance
 from src.envs.base_quad import QuadrupedEnv
 
-def dot_product_tolerance(x):
+def dot_product_tolerance(x, tolerance_margin=0.1):
     """Returns the tolerance of the dot product between two vectors."""
     return tolerance(
         x,
-        bounds=(1.0, np.inf),
-        margin=2.0,
+        bounds=(1.0 - tolerance_margin, np.inf),
+        margin=2.0 - tolerance_margin,
         value_at_margin=0.0,
-        sigmoid='linear' # Use cosine or linear for finite support
+        sigmoid='cosine' # Use cosine or linear for finite support
     )
 
 class SequencesRewardWrapper(gym.Wrapper):
     """
     Adds walking-specific sequenced rewards conditions to a quadruped env.
 
-    
-    
+    This wrapper is designed to be used with environments that have a
+    ControlInputWrapper. It calculates rewards based on the control inputs
+    and the state of the environment. The rewards are based on various
+    components such as heading, body height, orientation, control cost,
+    and velocity. The reward components are calculated and returned as
+    a dictionary. The total reward is the average of all components.
     """
 
     class_name = "SequencedRewardWrapper"
 
-    def __init__(self,
-                 env: gym.Env):
+    def __init__(self, env: gym.Env):
         """
         Args:
             env: The environment to wrap (must provide ControlInputWrapper interface).
@@ -107,15 +110,14 @@ class SequencesRewardWrapper(gym.Wrapper):
         
         return float(dot_product_tolerance(np.dot(body_x_axis_xy, heading_xy)))
 
-    def _body_height_reward(self, target_height: float = 0.12) -> float:
+    def _body_height_reward(self, target_height: float = 0.12, tolerance_margin: float = 0.005) -> float:
         """Calculates the cost based on the distance from the target height."""
         current_height = self.env.unwrapped.get_body_position()[2]
-        diff = np.abs(current_height - target_height)
 
         mapped_diff = tolerance(
-            diff,
-            bounds=(-np.inf, 0.0),
-            margin=0.02,
+            current_height,
+            bounds=(target_height - tolerance_margin, target_height + tolerance_margin),
+            margin=target_height,
             value_at_margin=0.1,
             sigmoid='gaussian'
         )
@@ -127,13 +129,13 @@ class SequencesRewardWrapper(gym.Wrapper):
         zaxis = dot_product_tolerance(self.env.unwrapped.get_body_z_axis()[2])
         height_reward = self._body_height_reward()
 
-        return float(0.2 * zaxis + 0.8 * zaxis * height_reward)
+        return float(0.5 * zaxis * height_reward + 0.5 * zaxis)
 
     def _control_cost(self) -> float:
         """Calculates the cost based on the magnitude of joint velocities."""
         joint_velocities = self.env.unwrapped.get_joint_velocities()
-        cost = np.sum(np.square(joint_velocities))
-        # Normalize by number of joints
+        cost = np.sum(np.abs(joint_velocities))
+        #s Normalize by number of joints
         num_joints = len(joint_velocities)
         if num_joints > 0:
             cost /= num_joints
@@ -205,8 +207,8 @@ class SequencesRewardWrapper(gym.Wrapper):
         # --- Map the reward components between 0 and 1 using dm_control tolerance function ---
         control_cost = tolerance(
             self._control_cost(),
-            bounds=(-np.inf, 0.1),
-            margin=0.5,
+            bounds=(3, 4),
+            margin=3,
             value_at_margin=0.1,
             sigmoid='long_tail'
         )
@@ -217,9 +219,9 @@ class SequencesRewardWrapper(gym.Wrapper):
 
         # --- Define the components ---
         components = {
-            "orientation_step": orientation_reward,
-            "heading_step": orientation_reward * heading_reward, # * control_cost,
-            "velocity_step": orientation_reward * heading_reward * velocity_reward # * control_cost,
+            # "orientation_step": orientation_reward, # * control_cost,
+            # "heading_step": orientation_reward * heading_reward, # * control_cost,
+            "velocity_step": orientation_reward * heading_reward * velocity_reward * control_cost,
         }
 
         return components

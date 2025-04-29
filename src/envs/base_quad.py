@@ -139,84 +139,104 @@ class QuadrupedEnv(gym.Env):
                              "Please check sensor names in the XML file.")
         return indices
 
-    def _randomize_initial_state(self):
-        """Randomly initializes orientation, joint angles, velocities, and controls."""
-        # --- Orientation and Base Velocity ---
-        self.data.qpos[0:3] = [0, 0, 0.25] # Start slightly above ground
+    def _randomize_initial_state(self,
+                                 start_height: float = 0.25,
+                                 mean_z_axis: List[float] = [0, 0, 1],
+                                 max_z_axis_variation: float = 180,
+                                 max_z_axis_rotation_angle: float = 180,
+                                 max_linear_velocity: float = 0.1,
+                                 max_angular_velocity: float = 0.1,
+                                 randomize_joint_angles: bool = True,
+                                ) -> None:
+        """
+        Randomly initializes orientation, joint angles, velocities, and controls.
         
-        mean_axis = np.array([0, 0, 1])  # Default to z-up
-        max_axis_angle = np.deg2rad(45)  # Maximum angle variation in radians
-        max_rotation_angle = np.deg2rad(0)  # Maximum rotation angle in radians
+        Args:
+            start_height (float): Height of the robot's base above ground.
+            mean_z_axis (List[float]): Mean z-axis vector for random orientation.
+            max_z_axis_variation (float): Maximum angle variation for z-axis.
+            max_z_axis_rotation_angle (float): Maximum rotation angle for z-axis.
+            max_linear_velocity (float): Maximum linear velocity for the base.
+            max_angular_velocity (float): Maximum angular velocity for the base.
+            randomize_joint_angles (bool): Whether to randomize joint angles.
+        """
+        # --- Orientation and Base Velocity ---
+        self.data.qpos[0:3] = [0, 0, start_height] # Start slightly above ground
+        
+        mean_axis = np.array(mean_z_axis)  # Default to z-up
+        max_axis_angle = np.deg2rad(max_z_axis_variation)  # Maximum angle variation in radians (45)
+        max_rotation_angle = np.deg2rad(max_z_axis_rotation_angle)  # Maximum rotation angle in radians (30)
         random_quat = generate_random_quaternion(mean_axis, max_axis_angle, max_rotation_angle)
         
         self.data.qpos[3:7] = random_quat # Initial orientation (w, x, y, z quaternion)
 
         # Randomly set initial linear and angular velocities for the base
-        self.data.qvel[0:3] = self.np_random.uniform(-0.1, 0.1, size=(3,)) # Linear velocity
-        self.data.qvel[3:6] = self.np_random.uniform(-0.1, 0.1, size=(3,)) # Angular velocity
+        self.data.qvel[0:3] = self.np_random.uniform(-max_linear_velocity, max_linear_velocity, size=(3,)) # Linear velocity
+        self.data.qvel[3:6] = self.np_random.uniform(-max_angular_velocity, max_angular_velocity, size=(3,)) # Angular velocity
 
         # --- Joint Angle and Control Initialization ---
 
-        # Define joint limits (radians) and control ranges based on quadruped.xml
-        # Note: XML ranges are in degrees, converted here to radians.
-        # TODO: Consider reading these directly from the model if possible/reliable
-        joint_limits_rad = {
-            # <default class="hip"> range="-45 45"
-            'hip':   (np.deg2rad(-45), np.deg2rad(45)),
-            # <default class="knee"> range="-45 120"
-            'knee':  (np.deg2rad(-45), np.deg2rad(120)),
-            # <default class="ankle"> range="-90 90"
-            'ankle': (np.deg2rad(-90), np.deg2rad(90))
-        }
-        control_ranges = {
-             # <default class="hip"> ctrlrange="-0.5 0.5"
-            'hip':   (-0.5, 0.5),
-             # <default class="knee"> ctrlrange="-0.91 0.91"
-            'knee':  (-0.91, 0.91),
-             # <default class="ankle"> ctrlrange="-1 1"
-            'ankle': (-1.0, 1.0)
-        }
-        # Order of joints corresponds to the XML structure and actuator order
-        joint_order = ['hip', 'knee', 'ankle'] * 4 # 4 legs
+        if randomize_joint_angles:
+            # Define joint limits (radians) and control ranges based on quadruped.xml
+            # Note: XML ranges are in degrees, converted here to radians.
+            # TODO: Consider reading these directly from the model if possible/reliable
+            joint_limits_rad = {
+                # <default class="hip"> range="-45 45"
+                'hip':   (np.deg2rad(-45), np.deg2rad(45)),
+                # <default class="knee"> range="-45 120"
+                'knee':  (np.deg2rad(-45), np.deg2rad(120)),
+                # <default class="ankle"> range="-90 90"
+                'ankle': (np.deg2rad(-90), np.deg2rad(90))
+            }
+            control_ranges = {
+                # <default class="hip"> ctrlrange="-0.5 0.5"
+                'hip':   (-0.5, 0.5),
+                # <default class="knee"> ctrlrange="-0.91 0.91"
+                'knee':  (-0.91, 0.91),
+                # <default class="ankle"> ctrlrange="-1 1"
+                'ankle': (-1.0, 1.0)
+            }
+            # Order of joints corresponds to the XML structure and actuator order
+            joint_order = ['hip', 'knee', 'ankle'] * 4 # 4 legs
 
-        num_actuated_joints = self.model.nu # Should be 12
-        qpos_start_idx = 7 # qpos index after free joint (3 pos + 4 quat)
-        qvel_start_idx = 6 # qvel index after free joint (3 lin_vel + 3 ang_vel)
+            num_actuated_joints = self.model.nu # Should be 12
+            qpos_start_idx = 7 # qpos index after free joint (3 pos + 4 quat)
+            qvel_start_idx = 6 # qvel index after free joint (3 lin_vel + 3 ang_vel)
 
-        random_angles_rad = np.zeros(num_actuated_joints)
-        control_values = np.zeros(num_actuated_joints)
+            random_angles_rad = np.zeros(num_actuated_joints)
+            control_values = np.zeros(num_actuated_joints)
 
-        # Iterate through each actuated joint
-        for i in range(num_actuated_joints):
-            joint_type = joint_order[i]
-            min_rad, max_rad = joint_limits_rad[joint_type]
-            ctrl_min, ctrl_max = control_ranges[joint_type]
+            # Iterate through each actuated joint
+            for i in range(num_actuated_joints):
+                joint_type = joint_order[i]
+                min_rad, max_rad = joint_limits_rad[joint_type]
+                ctrl_min, ctrl_max = control_ranges[joint_type]
 
-            # Generate random angle within joint limits
-            angle_rad = self.np_random.uniform(min_rad, max_rad)
-            random_angles_rad[i] = angle_rad
+                # Generate random angle within joint limits
+                angle_rad = self.np_random.uniform(min_rad, max_rad)
+                random_angles_rad[i] = angle_rad
 
-            # Map the target angle (qpos) to the corresponding control value
-            joint_range_rad = max_rad - min_rad
-            if abs(joint_range_rad) > 1e-6: # Avoid division by zero
-                 norm_pos = (angle_rad - min_rad) / joint_range_rad
-            else:
-                 norm_pos = 0.5 # Midpoint
+                # Map the target angle (qpos) to the corresponding control value
+                joint_range_rad = max_rad - min_rad
+                if abs(joint_range_rad) > 1e-6: # Avoid division by zero
+                    norm_pos = (angle_rad - min_rad) / joint_range_rad
+                else:
+                    norm_pos = 0.5 # Midpoint
 
-            ctrl_range = ctrl_max - ctrl_min
-            ctrl_val = ctrl_min + norm_pos * ctrl_range
+                ctrl_range = ctrl_max - ctrl_min
+                ctrl_val = ctrl_min + norm_pos * ctrl_range
 
-            # Clip control value
-            control_values[i] = np.clip(ctrl_val, ctrl_min, ctrl_max)
+                # Clip control value
+                control_values[i] = np.clip(ctrl_val, ctrl_min, ctrl_max)
 
-        # Set the initial joint positions (qpos)
-        self.data.qpos[qpos_start_idx : qpos_start_idx + num_actuated_joints] = random_angles_rad
+            # Set the initial joint positions (qpos)
+            self.data.qpos[qpos_start_idx : qpos_start_idx + num_actuated_joints] = random_angles_rad
 
-        # Set the initial joint velocities (qvel)
-        self.data.qvel[qvel_start_idx : qvel_start_idx + num_actuated_joints] = self.np_random.uniform(-0.1, 0.1, size=num_actuated_joints) # Or just zeros
+            # Set the initial joint velocities (qvel)
+            self.data.qvel[qvel_start_idx : qvel_start_idx + num_actuated_joints] = self.np_random.uniform(-0.1, 0.1, size=num_actuated_joints) # Or just zeros
 
-        # Set the initial control signals (ctrl)
-        self.data.ctrl[:] = control_values
+            # Set the initial control signals (ctrl)
+            self.data.ctrl[:] = control_values
 
         mujoco.mj_forward(self.model, self.data) # Apply changes
 
@@ -234,7 +254,8 @@ class QuadrupedEnv(gym.Env):
 
         # Apply custom random initialization if requested
         if combined_options.get("randomize_initial_state", False):
-            self._randomize_initial_state()
+            inital_state_options = combined_options.get("initial_state_options", {})
+            self._randomize_initial_state(**inital_state_options)
         else:
             # Set a default starting pose if not randomizing
             self.data.qpos[2] = 0.12 # Start slightly above ground

@@ -57,6 +57,11 @@ class VelocityActionWrapper(gym.ActionWrapper):
         Returns:
             The calculated target joint positions for the underlying environment.
         """
+
+        # If action is None, return None to disable control
+        if action is None:
+            return None
+
         # Ensure action is within the expected [-1, 1] range
         action = np.clip(action, -1.0, 1.0)
 

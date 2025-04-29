@@ -2,6 +2,7 @@ import numpy as np
 import time
 import os
 import sys
+import matplotlib.pyplot as plt
 
 # --- Add project root to sys.path ---
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -11,9 +12,9 @@ if project_root not in sys.path:
 
 # Import the base environment class directly
 from src.envs.base_quad import QuadrupedEnv
-# Optionally import wrappers if you want to test them interactively
-# from src.envs.env_builder import create_quadruped_env
-# from src.controls.velocity_heading_controls import VelocityHeadingControls
+
+from src.envs.env_builder import create_quadruped_env
+from src.controls.velocity_heading_controls import VelocityHeadingControls
 
 def run_env_test():
     """
@@ -28,14 +29,38 @@ def run_env_test():
     try:
         # --- Initialize the Base Environment ---
         # Set render_mode="human" and max_time=inf for continuous running.
-        # No wrappers needed if just testing base physics and rendering.
-        env = QuadrupedEnv(
-            render_mode="human",
-            max_time=np.inf, # No time limit
+        OBS_WINDOW = 1 # Observation window size (1 for single timestep, >1 for history)
+        MAX_TIME = 10 # np.inf # Max seconds per episode
+        CONTROL_LOGIC = VelocityHeadingControls
+
+        TEST_RESET_OPTIONS = {
+            'randomize_initial_state': False, # Randomize base pose/velocity in BaseQuadrupedEnv
+            'control_inputs': {             # Options for ControlInputWrapper.sample
+                'min_speed': 0.0,
+                'max_speed': 0.5,
+                'fixed_heading_angle': None,
+                'fixed_velocity_angle': None,
+                'fixed_speed': None
+            }
+        }
+        test_env_options = {
+            "max_time": MAX_TIME,
+            "obs_window": OBS_WINDOW,
+            "control_logic_class": CONTROL_LOGIC,
+            "reset_options": TEST_RESET_OPTIONS,
+            "add_reward_wrapper": True, # Include wrappers used during training
+            "add_po_wrapper": False,
+            "render_mode": "human",
+        }
+        env = create_quadruped_env(**test_env_options)
+        
+        # QuadrupedEnv(
+        #     render_mode="human",
+        #     max_time=np.inf, # No time limit
             # Add any other necessary base env init args here
             # e.g., model_path if not default
-            reset_options={'randomize_initial_state': True} # Start from random poses
-        )
+        #    reset_options={'randomize_initial_state': True} # Start from random poses
+        #)
 
         # --- Alternative: Test with Wrappers ---
         # Uncomment below to test the fully wrapped environment interactively
@@ -57,6 +82,9 @@ def run_env_test():
         # --- Initial Reset ---
         obs, info = env.reset() # Get initial state
 
+        # --- Add counter for steps ---
+        step_count = 0
+
         # --- Main Interactive Loop ---
         while True:
             # --- Check Viewer Status ---
@@ -64,10 +92,7 @@ def run_env_test():
             # If using create_quadruped_env, env.unwrapped gets the base env.
             # If using QuadrupedEnv directly, env is the base env.
             base_env = env.unwrapped if hasattr(env, 'unwrapped') else env
-            if base_env.viewer is None:
-                 print("Viewer not initialized or closed unexpectedly.")
-                 break
-            if not base_env.viewer.is_running():
+            if base_env.viewer is not None and not base_env.viewer.is_running():
                 print("Viewer closed by user. Exiting.")
                 break
 
@@ -79,7 +104,12 @@ def run_env_test():
             # action = env.action_space.sample()
 
             # Or pass none action to disable control
-            action = None
+            # action = None
+
+            if step_count < 50:
+                action = None # No action for the first 10 steps
+            else:
+                action = np.array([1] * env.action_space.shape[0], dtype=np.float32) # Zero action
 
             # --- Step the Environment ---
             # We don't need the returned values for this simple test
@@ -96,10 +126,16 @@ def run_env_test():
                 # Optionally print info dict contents
                 print("Resetting environment...")
                 obs, info = env.reset()
+                step_count = 0
                 print("-" * 30)
 
-            # Optional small delay if needed, though viewer sync should manage speed
-            # time.sleep(0.01)
+                break
+
+            # --- Increment Step Count ---
+            step_count += 1
+
+        # --- End of Loop ---
+        print("Simulation loop ended.")
 
     except Exception as e:
         print(f"\nAn error occurred: {e}")
