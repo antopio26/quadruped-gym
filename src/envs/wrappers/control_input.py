@@ -66,9 +66,7 @@ class ControlInputWrapper(gym.Wrapper):
         control_options = combined_options.get("control_inputs", None)
 
         # Update control logic state (e.g., sample new commands)
-        # Pass current orientation if needed by the control logic for sampling
-        current_quat = self.env.unwrapped.get_body_orientation_quat() # Access base env method
-        self.control_logic.sample(options=control_options, orientation_quat=current_quat)
+        self.control_logic.sample(options=control_options)
 
         # Add control observation to info
         info['control_inputs_obs'] = self.control_logic.get_obs()
@@ -78,10 +76,6 @@ class ControlInputWrapper(gym.Wrapper):
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         """Steps the environment and adds current control observation to info."""
-        # --- Optional: Update control logic dynamically before stepping ---
-        # E.g., if controls decay or change based on time/state
-        # dt = self.env.unwrapped.get_dt()
-        # self.control_logic.update(dt) # Assuming an update method exists
 
         # Step the wrapped environment(s)
         observation, reward, terminated, truncated, info = self.env.step(action)

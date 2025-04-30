@@ -61,6 +61,10 @@ class SequencesRewardWrapper(gym.Wrapper):
         self.previous_ctrl = np.ones(action_shape, dtype=np.float32)
         self.current_ctrl = np.zeros(action_shape, dtype=np.float32)
 
+        # --- Joint centers for posture cost ---
+        hip, knee, ankle = 0.0, 0.0, -0.5
+        self.joint_centers = np.array([hip, knee, ankle] * 4, dtype=np.float32)
+
         # --- Reward configuration ---
         initial_components = self._calculate_reward_components()
         self.reward_keys = list(initial_components.keys())
@@ -140,10 +144,13 @@ class SequencesRewardWrapper(gym.Wrapper):
         if num_joints > 0:
             cost /= num_joints
 
-        # This cost needs to be mapped to a reward (0 to 1),
-        # where lower cost is better (higher reward).
-        # We apply the tolerance mapping in _calculate_reward_components.
-        return float(cost) # Return the raw cost here
+        return float(cost)
+    
+    def _joint_posture_cost(self) -> float:
+        """Calculates the cost based on the difference from the target posture."""
+        current_joint_angles = self.env.unwrapped.get_control_inputs()
+        cost = np.sum(np.abs(current_joint_angles - self.joint_centers))
+        return float(cost / self.env.action_space.shape[0]) if self.env.action_space.shape[0] > 0 else 0.0
 
     def _velocity_reward(self) -> float:
         """Calculates the reward based on the velocity."""
@@ -207,11 +214,21 @@ class SequencesRewardWrapper(gym.Wrapper):
         # --- Map the reward components between 0 and 1 using dm_control tolerance function ---
         control_cost = tolerance(
             self._control_cost(),
-            bounds=(3, 4),
-            margin=3,
+            bounds=(3, 5),
+            margin=2,
             value_at_margin=0.1,
-            sigmoid='long_tail'
+            sigmoid='gaussian'
         )
+
+        posture_cost = tolerance(
+            self._joint_posture_cost(),
+            bounds=(0.0, 0.5),
+            margin=1,
+            value_at_margin=0.1,
+            sigmoid='gaussian'
+        )
+
+        behavior_reward = (control_cost + posture_cost + control_cost * posture_cost) / 3.0
 
         orientation_reward = self._orientation_reward()     # R_o
         heading_reward = self._heading_reward()             # R_h
@@ -221,7 +238,7 @@ class SequencesRewardWrapper(gym.Wrapper):
         components = {
             # "orientation_step": orientation_reward, # * control_cost,
             # "heading_step": orientation_reward * heading_reward, # * control_cost,
-            "velocity_step": orientation_reward * heading_reward * velocity_reward * control_cost,
+            "velocity_step": orientation_reward * heading_reward * velocity_reward * behavior_reward,
         }
 
         return components

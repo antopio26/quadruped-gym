@@ -89,6 +89,8 @@ class VelocityHeadingControls(BaseControls):
             options: Dictionary with sampling options. Possible keys:
                      - 'min_speed': Minimum speed for velocity sampling.
                      - 'max_speed': Maximum speed for velocity sampling.
+                     - 'max_theta': Maximum heading angle (in degrees) for sampling.
+                     - 'max_alpha': Maximum local velocity angle (in degrees) for sampling.
                      - 'fixed_heading_angle': Fixed heading angle if provided.
                      - 'fixed_velocity_angle': Fixed local velocity angle (relative to heading) if provided.
                      - 'fixed_speed': Fixed speed if provided.
@@ -100,6 +102,8 @@ class VelocityHeadingControls(BaseControls):
 
         min_speed = options.get('min_speed', 0.0)
         max_speed = options.get('max_speed', 1.0)
+        max_theta = options.get('max_angle', 180)
+        max_alpha = options.get('max_alpha', 180)
         fixed_heading_angle = options.get('fixed_heading_angle', None)
         fixed_velocity_angle = options.get('fixed_velocity_angle', None) # Angle relative to heading
         fixed_speed = options.get('fixed_speed', None)
@@ -108,7 +112,7 @@ class VelocityHeadingControls(BaseControls):
         if fixed_heading_angle is not None:
             theta = fixed_heading_angle
         else:
-            theta = np.random.uniform(-np.pi, np.pi)
+            theta = np.random.uniform(-np.deg2rad(max_theta), np.deg2rad(max_theta))
 
         # Set orientation (updates heading and global velocity)
         self.set_orientation(theta)
@@ -117,7 +121,7 @@ class VelocityHeadingControls(BaseControls):
         if fixed_velocity_angle is not None:
             alpha = fixed_velocity_angle
         else:
-            alpha = np.random.uniform(-np.pi, np.pi)
+            alpha = np.random.uniform(-np.deg2rad(max_alpha), np.deg2rad(max_alpha))
 
         # Sample speed if not fixed
         if fixed_speed is not None:

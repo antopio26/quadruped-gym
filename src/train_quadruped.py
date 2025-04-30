@@ -50,7 +50,7 @@ def make_env(rank: int, seed: int = 0, env_options: dict = None):
 if __name__ == '__main__':
     # --- Configuration ---
     REAL_TIME_PLOT = False # Set to True for live plotting (can be slow)
-    OUTPUT_FOLDER = './policies/po_vel_ppo_v0' # Choose a new folder name
+    OUTPUT_FOLDER = './policies/po_vel_ppo_v3' # Choose a new folder name
     MODEL_FILENAME = 'policy.zip'
     STEPS_FILENAME = 'steps.txt'
     LOGS_SUBDIR = 'logs'
@@ -78,17 +78,19 @@ if __name__ == '__main__':
             'start_height': 0.25,
             'mean_z_axis': [0, 0, 1],
             'max_z_axis_variation': 45,
-            'max_z_axis_rotation_angle': 20,
+            'max_z_axis_rotation_angle': 30,
             'max_linear_velocity': 0.1,
             'max_angular_velocity': 0.1,
             'randomize_joint_angles': True
         },
         'control_inputs': {             # Options for ControlInputWrapper.sample
-            # 'min_speed': 0.0,
-            # 'max_speed': 0.5,
-            'fixed_heading_angle': 0.0,
+            'min_speed': 0.1,
+            'max_speed': 0.5,
+            'fixed_speed': None,
+            #'max_alpha': 180, # Max local velocity angle (relative to heading)
             'fixed_velocity_angle': 0.0,
-            'fixed_speed': 0.4
+            #'max_theta': 180,
+            'fixed_heading_angle': 0.0,
         }
         # Add other BaseQuadrupedEnv reset options if needed
     }

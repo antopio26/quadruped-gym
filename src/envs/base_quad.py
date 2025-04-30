@@ -495,7 +495,7 @@ class QuadrupedEnv(gym.Env):
 
         # Update viewer camera if in human mode (not for now)
         if self.render_mode == "human" and self.viewer is not None and self.viewer.is_running():
-            # self.viewer.cam.lookat[:] = robot_pos
+            self.viewer.cam.lookat[:] = robot_pos
             pass
 
     def add_render_callback(self, callback: Callable[[], None]):
