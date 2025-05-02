@@ -1,5 +1,6 @@
+# src/env_builder.py
 import numpy as np
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple, Type
 
 import gymnasium as gym
 
@@ -8,9 +9,12 @@ from src.envs.wrappers.control_input import ControlInputWrapper
 from src.envs.wrappers.partial_observation import PartialObservationWrapper
 from src.envs.wrappers.sequenced_rewards import SequencesRewardWrapper
 from src.envs.wrappers.velocity_action import VelocityActionWrapper
+# Import the new wrapper
+from src.envs.wrappers.random_force_disturb import RandomForceDisturbWrapper
 from src.controls.velocity_heading_controls import VelocityHeadingControls
 
 def create_quadruped_env(
+    # --- Base Env Args ---
     model_path: str = "./models/quadruped/scene.xml",
     max_time: float = 10.0,
     frame_skip: int = 16,
@@ -21,27 +25,34 @@ def create_quadruped_env(
     save_video: bool = False,
     video_path: str = "videos/simulation.mp4",
     reset_options: Optional[Dict[str, Any]] = None,
-    # Wrapper specific args
-    obs_window: int = 1,
-    control_logic_class = VelocityHeadingControls, # Allow specifying control logic
+    # --- Wrapper Args ---
+    # Velocity Action Wrapper
+    use_velocity_wrapper: bool = True,
+    max_joint_speed: float = 5.0, # Max speed for velocity wrapper (unit/s)
+    # Control Input Wrapper
+    control_logic_class: Type = VelocityHeadingControls, # Allow specifying control logic class
     control_kwargs: Optional[Dict[str, Any]] = None, # Args for control logic constructor
-    add_reward_wrapper: bool = True, # Option to skip reward wrapper if not needed
-    add_po_wrapper: bool = True, # Option to skip PO wrapper if not needed
-    use_velocity_wrapper: bool = True, # Option to use the velocity wrapper
-    max_joint_speed: float = 5, # Max speed for velocity wrapper (unit/s)
+    # Partial Observation Wrapper
+    add_po_wrapper: bool = True,
+    obs_window: int = 1,
+    # Reward Wrapper
+    add_reward_wrapper: bool = True,
+    # Random Force Wrapper Args
+    add_force_wrapper: bool = False, # Default to False
+    random_force_options: Optional[Dict[str, Any]] = None,
 ) -> gym.Env:
     """
-    Builds the wrapped Quadruped environment stack.
+    Builds the wrapped Quadruped environment stack, including optional
+    random impulse disturbances.
 
     Args:
-        # BaseQuadrupedEnv args... (see above)
-        # Wrapper args... (see above)
-        control_logic_class: The class for control logic (e.g., VelocityHeadingControls).
-        control_kwargs: Arguments to pass to the control_logic_class constructor.
-        add_reward_wrapper: If True, adds the SequencedRewardWrapper.
-        add_po_wrapper: If True, adds the PartialObservationWrapper.
-        use_velocity_wrapper: If True, adds the VelocityActionWrapper.
-        max_joint_speed: The maximum joint speed for the VelocityActionWrapper.
+        # BaseQuadrupedEnv args...
+        # VelocityActionWrapper args...
+        # ControlInputWrapper args...
+        # PartialObservationWrapper args...
+        # SequencedRewardWrapper args...
+        # RandomImpulseDisturbWrapper args...
+        add_impulse_wrapper: If True, adds the RandomImpulseDisturbWrapper.
 
     Returns:
         The fully wrapped Gymnasium environment.
@@ -63,24 +74,28 @@ def create_quadruped_env(
         reset_options=reset_options # Pass reset options here
     )
 
-    # 2. Velocity Action Wrapper (Optional - applied before ControlInputWrapper)
+    # 2. Random Impulse Wrapper (Optional - applied early)
+    if add_force_wrapper:
+        env = RandomForceDisturbWrapper(
+            env=env,
+            **random_force_options
+        )
+
+    # 3. Velocity Action Wrapper (Optional - applied before ControlInputWrapper)
     if use_velocity_wrapper:
-        # Ensure the base env has the required method if using the first version
-        # if not hasattr(env.unwrapped, 'get_joint_positions'):
-        #     raise AttributeError("Base environment needs 'get_joint_positions' for the first VelocityActionWrapper version.")
         env = VelocityActionWrapper(
             env=env,
             max_speed=max_joint_speed
         )
 
-    # 3. Control Input Wrapper
+    # 4. Control Input Wrapper
     env = ControlInputWrapper(
         env=env,
         control_logic_class=control_logic_class,
         **control_kwargs
     )
 
-    # 4. Partial Observation Wrapper (Optional)
+    # 5. Partial Observation Wrapper (Optional)
     if add_po_wrapper:
         env = PartialObservationWrapper(
             env=env,
@@ -88,10 +103,11 @@ def create_quadruped_env(
             # expected_control_obs_size is inferred from ControlInputWrapper
         )
 
-    # 5. Walking Reward Wrapper (Optional)
+    # 6. Walking Reward Wrapper (Optional)
     if add_reward_wrapper:
         env = SequencesRewardWrapper(
             env=env
+            # Add any reward wrapper specific args here if needed
         )
 
     return env

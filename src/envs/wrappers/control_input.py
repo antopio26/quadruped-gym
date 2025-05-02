@@ -63,13 +63,13 @@ class ControlInputWrapper(gym.Wrapper):
         combined_options = getattr(self.env.unwrapped, 'reset_options', {}).copy()
         if options is not None:
             combined_options.update(options)
-        control_options = combined_options.get("control_inputs", None)
+        control_options = combined_options.get("control_inputs_sampling_options", None)
 
         # Update control logic state (e.g., sample new commands)
         self.control_logic.sample(options=control_options)
 
         # Add control observation to info
-        info['control_inputs_obs'] = self.control_logic.get_obs()
+        info['control_inputs_obs'] = self.control_logic.get_obs(self.env.unwrapped)
         info['control_obs_size'] = self._control_obs_size
 
         return observation, info
@@ -81,7 +81,7 @@ class ControlInputWrapper(gym.Wrapper):
         observation, reward, terminated, truncated, info = self.env.step(action)
 
         # Add current control observation to info
-        info['control_inputs_obs'] = self.control_logic.get_obs()
+        info['control_inputs_obs'] = self.control_logic.get_obs(self.env.unwrapped)
         info['control_obs_size'] = self._control_obs_size
 
         return observation, reward, terminated, truncated, info

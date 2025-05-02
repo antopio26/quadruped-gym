@@ -9,7 +9,7 @@ class BaseControls:
         """
         self.obs_size: int = 0 # Subclasses should define their observation size
 
-    def get_obs(self) -> np.ndarray:
+    def get_obs(self, env=None) -> np.ndarray:
         """
         Returns the observation vector representing the current control state.
         """

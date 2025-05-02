@@ -30,11 +30,14 @@ def run_env_test():
         # --- Initialize the Base Environment ---
         # Set render_mode="human" and max_time=inf for continuous running.
         OBS_WINDOW = 1 # Observation window size (1 for single timestep, >1 for history)
-        MAX_TIME = 10 # np.inf # Max seconds per episode
+        MAX_TIME = np.inf # Max seconds per episode
         CONTROL_LOGIC = VelocityHeadingControls
 
         TEST_RESET_OPTIONS = {
-            'randomize_initial_state': False, # Randomize base pose/velocity in BaseQuadrupedEnv
+            'randomize_initial_state': True, # Randomize base pose/velocity in BaseQuadrupedEnv
+            'initial_state_options': {
+                'friction_range': (3, 3), # Friction range for the ground
+            },
             'control_inputs': {             # Options for ControlInputWrapper.sample
                 'min_speed': 0.0,
                 'max_speed': 0.5,
@@ -43,6 +46,16 @@ def run_env_test():
                 'fixed_speed': None
             }
         }
+        RANDOM_FORCE_OPTIONS = {
+            'apply_translational_forces': True,
+            'translational_force_magnitude_range': (5.0, 20.0),
+            'apply_rotational_forces': True,
+            'rotational_force_magnitude_range': (0.5, 2.0),
+            'force_duration_range': (0.1, 0.5), # Shorter duration for force vs impulse
+            'force_interval_range': (1.0, 5.0),
+            'force_body_name': "FRAME",
+            'apply_at_reset': False
+        }
         test_env_options = {
             "max_time": MAX_TIME,
             "obs_window": OBS_WINDOW,
@@ -50,6 +63,8 @@ def run_env_test():
             "reset_options": TEST_RESET_OPTIONS,
             "add_reward_wrapper": True, # Include wrappers used during training
             "add_po_wrapper": False,
+            "add_force_wrapper": False,
+            "random_force_options": RANDOM_FORCE_OPTIONS,
             "render_mode": "human",
         }
         env = create_quadruped_env(**test_env_options)
@@ -110,6 +125,8 @@ def run_env_test():
                 action = None # No action for the first 10 steps
             else:
                 action = np.array([1] * env.action_space.shape[0], dtype=np.float32) # Zero action
+
+            action = None
 
             # --- Step the Environment ---
             # We don't need the returned values for this simple test

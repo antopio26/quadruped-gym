@@ -114,7 +114,7 @@ class SequencesRewardWrapper(gym.Wrapper):
         
         return float(dot_product_tolerance(np.dot(body_x_axis_xy, heading_xy)))
 
-    def _body_height_reward(self, target_height: float = 0.12, tolerance_margin: float = 0.005) -> float:
+    def _body_height_reward(self, target_height: float = 0.145, tolerance_margin: float = 0.02) -> float:
         """Calculates the cost based on the distance from the target height."""
         current_height = self.env.unwrapped.get_body_position()[2]
 
@@ -214,7 +214,7 @@ class SequencesRewardWrapper(gym.Wrapper):
         # --- Map the reward components between 0 and 1 using dm_control tolerance function ---
         control_cost = tolerance(
             self._control_cost(),
-            bounds=(3, 5),
+            bounds=(1, 4),
             margin=2,
             value_at_margin=0.1,
             sigmoid='gaussian'
@@ -238,7 +238,7 @@ class SequencesRewardWrapper(gym.Wrapper):
         components = {
             # "orientation_step": orientation_reward, # * control_cost,
             # "heading_step": orientation_reward * heading_reward, # * control_cost,
-            "velocity_step": orientation_reward * heading_reward * velocity_reward * behavior_reward,
+            "velocity_step": orientation_reward * heading_reward * velocity_reward * posture_cost,
         }
 
         return components

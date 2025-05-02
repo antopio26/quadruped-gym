@@ -1,7 +1,7 @@
 <mujoco>
     <compiler angle="degree" meshdir="./mesh" texturedir="./textures" />
 
-    <option integrator="implicitfast" />
+    <option integrator="implicitfast"  cone="elliptic"/>
 
     <default>
         <default class="quadruped">

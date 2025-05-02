@@ -8,31 +8,17 @@ from typing import Optional, Dict, Any, Tuple
 from src.envs.wrappers.control_input import ControlInputWrapper
 from src.utils.envs import find_wrapper_by_name
 
-# AHRS for orientation estimation
-try:
-    from ahrs.filters import Madgwick
-    from ahrs.common import Quaternion
-    _AHRS_AVAILABLE = True
-except ImportError:
-    _AHRS_AVAILABLE = False
-    # Define dummy classes if ahrs is not installed
-    class Madgwick:
-        def __init__(self, *args, **kwargs): pass
-        def updateIMU(self, *args, **kwargs): return np.array([1., 0., 0., 0.])
-    class Quaternion:
-        def __init__(self, *args, **kwargs): pass
-        def to_angles(self): return np.zeros(3)
-    print("Warning: 'ahrs' library not found. Orientation estimation in PartialObservationWrapper will be disabled (returning zeros).")
-
+# AHRS import is no longer needed here, moved to base_quad.py
 
 class PartialObservationWrapper(gym.ObservationWrapper):
     """
     Wraps a quadruped environment to provide a partially observable state.
 
     Constructs observations using IMU data (accelerometer, gyroscope),
-    estimated orientation (via Madgwick filter if 'ahrs' is installed),
+    estimated orientation (obtained from the base environment's Madgwick filter),
     proprioceptive information (actuator commands, command derivatives),
-    and external commands (from the info dict provided by ControlInputWrapper).
+    and external commands and their derivatives (from the info dict provided
+    by ControlInputWrapper).
     Supports observation stacking using a rolling window.
     """
 
@@ -44,7 +30,8 @@ class PartialObservationWrapper(gym.ObservationWrapper):
                  expected_control_obs_size: Optional[int] = None):
         """
         Args:
-            env: The environment to wrap (should provide base QuadrupedEnv methods).
+            env: The environment to wrap (should provide base QuadrupedEnv methods,
+                 including get_estimated_body_orientation_euler()).
             obs_window: Number of historical observation frames to stack.
             expected_control_obs_size: The expected size of 'control_inputs_obs'
                 in the info dict. If None, it tries to infer from the wrapped env.
@@ -55,8 +42,16 @@ class PartialObservationWrapper(gym.ObservationWrapper):
             raise ValueError("obs_window must be >= 1")
         self.obs_window = obs_window
 
-        if not _AHRS_AVAILABLE and obs_window > 0:
-            print("Warning: 'ahrs' library not installed. Orientation component of PO observation will be zero.")
+        # Check if the base env has the required orientation estimation method
+        if not hasattr(self.env.unwrapped, 'get_estimated_body_orientation_euler'):
+            raise AttributeError("The wrapped environment must have a 'get_estimated_body_orientation_euler' method.")
+        # Check if the base env has the required control input method
+        if not hasattr(self.env.unwrapped, 'get_control_inputs'):
+             raise AttributeError("The wrapped environment must have a 'get_control_inputs' method.")
+        # Check if the base env has the required dt method
+        if not hasattr(self.env.unwrapped, 'get_dt'):
+             raise AttributeError("The wrapped environment must have a 'get_dt' method.")
+
 
         # --- Determine expected external control size ---
         if expected_control_obs_size is None:
@@ -76,11 +71,12 @@ class PartialObservationWrapper(gym.ObservationWrapper):
         single_obs_size = 0
         single_obs_size += 3  # Gyroscope
         single_obs_size += 3  # Accelerometer
-        single_obs_size += 3  # Euler angles (estimated orientation)
+        single_obs_size += 3  # Euler angles (estimated orientation from base env)
         single_obs_size += 2  # Body velocity XY (proxy for optical flow)
         single_obs_size += self.env.action_space.shape[0] # Current control command
         single_obs_size += self.env.action_space.shape[0] # Control command derivative
         single_obs_size += self._expected_control_obs_size # External controls (from info)
+        single_obs_size += self._expected_control_obs_size # External controls derivative (from info) # ADDED
 
         total_obs_size = single_obs_size * self.obs_window
         self.observation_space = spaces.Box(
@@ -88,11 +84,12 @@ class PartialObservationWrapper(gym.ObservationWrapper):
         )
 
         # --- State for PO ---
-        self.madgwick_filter = Madgwick() # Dt and q0 set in reset
-        self.computed_orientation = np.array([1., 0., 0., 0.], dtype=np.float64)
+        # Madgwick filter state is now managed by the base environment
         self._obs_buffer = deque(maxlen=self.obs_window)
         # Store previous control state *within this wrapper* for derivative calculation
         self.previous_ctrl_po = np.zeros(self.env.action_space.shape[0], dtype=np.float32)
+        # Store previous external control obs for derivative calculation # ADDED
+        self.previous_external_control_obs = np.zeros(self._expected_control_obs_size, dtype=np.float32)
 
         # Ensure reset is called to initialize buffer correctly
         # self.reset() # Calling reset in init is problematic; do it externally or on first use
@@ -100,24 +97,22 @@ class PartialObservationWrapper(gym.ObservationWrapper):
     def reset(self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Resets the environment and PO-specific state including the observation buffer."""
         # Reset wrapped environment(s)
+        # This will also reset the Madgwick filter in the base env
         observation, info = self.env.reset(seed=seed, options=options)
         # Note: 'observation' here is the full observation from the wrapped env, which we ignore.
 
         # --- Reset PO-Specific State ---
-        dt = self.env.unwrapped.get_dt()
-        q0 = self.env.unwrapped.get_body_orientation_quat().astype(np.float64)
-        self.computed_orientation = q0
-        if _AHRS_AVAILABLE:
-            self.madgwick_filter = Madgwick(Dt=dt, q0=q0)
-        else:
-            self.madgwick_filter = Madgwick() # Dummy filter
-
         # Reset previous control based on state *after* reset
         self.previous_ctrl_po = self.env.unwrapped.get_control_inputs()
+
+        # Reset previous external control obs based on info *after* reset # ADDED
+        initial_external_control_obs = self._extract_and_validate_external_control(info)
+        self.previous_external_control_obs = initial_external_control_obs # Initialize for first derivative calc
 
         # --- Initialize Observation Buffer ---
         self._obs_buffer.clear()
         # Compute the *actual* first partial observation frame using the reset state
+        # The base env's orientation estimate is already updated by its reset method
         first_frame = self._compute_single_po_frame(info) # Pass info from reset
 
         # Fill the buffer by repeating the first frame
@@ -137,16 +132,19 @@ class PartialObservationWrapper(gym.ObservationWrapper):
         """Steps the environment and computes the new partial observation."""
         # Store control state *before* step for derivative calculation
         ctrl_before_step = self.env.unwrapped.get_control_inputs()
+        # Note: previous_external_control_obs is already stored from the end of the last step/reset
 
         # Step the wrapped environment(s)
+        # This will also update the Madgwick filter in the base env
         _observation, reward, terminated, truncated, info = self.env.step(action)
         # We ignore _observation as we compute our own PO observation below.
 
         # Compute the new PO observation frame using state *after* the step
-        # Pass the info dict which should contain 'control_inputs_obs'
+        # This call will use self.previous_ctrl_po and self.previous_external_control_obs
+        # and will update self.previous_external_control_obs internally for the *next* step.
         po_observation_frame = self._compute_single_po_frame(info)
 
-        # Update previous control state *after* using it for derivative
+        # Update previous internal control state *after* using it for derivative
         self.previous_ctrl_po = ctrl_before_step # Use the control active during this step
 
         # Add the new frame to the buffer (deque handles the rolling window)
@@ -167,7 +165,7 @@ class PartialObservationWrapper(gym.ObservationWrapper):
 
         Note: This method is called by the ObservationWrapper base class *after*
         step() returns. Since our PO calculation depends on state computed *during*
-        step (like the info dict and Madgwick updates), we perform the full
+        step (like the info dict and base env updates), we perform the full
         calculation within step() and return the final result there. This override
         is mainly to satisfy the base class structure but returns the already
         computed and buffered observation.
@@ -180,6 +178,20 @@ class PartialObservationWrapper(gym.ObservationWrapper):
         # Return the latest stacked observation from the buffer
         return np.concatenate(list(self._obs_buffer), axis=0).astype(np.float32)
 
+    def _extract_and_validate_external_control(self, info: Dict[str, Any]) -> np.ndarray:
+        """Helper to extract and validate 'control_inputs_obs' from info."""
+        external_control_obs = info.get('control_inputs_obs', None)
+        if external_control_obs is None:
+             # print(f"Warning: 'control_inputs_obs' not found in info dict.") # Reduce verbosity
+             external_control_obs = np.zeros(self._expected_control_obs_size, dtype=np.float32) # Use zeros if not found
+        elif len(external_control_obs) != self._expected_control_obs_size:
+             print(f"Warning: Mismatch in 'control_inputs_obs' size. Expected {self._expected_control_obs_size}, got {len(external_control_obs)}. Padding/truncating.")
+             padded_obs = np.zeros(self._expected_control_obs_size, dtype=np.float32)
+             copy_len = min(len(external_control_obs), self._expected_control_obs_size)
+             padded_obs[:copy_len] = external_control_obs[:copy_len]
+             external_control_obs = padded_obs
+        return external_control_obs.astype(np.float32)
+
 
     def _compute_single_po_frame(self, info: Dict[str, Any]) -> np.ndarray:
         """Helper to compute a single frame of the partial observation."""
@@ -191,49 +203,39 @@ class PartialObservationWrapper(gym.ObservationWrapper):
         body_vel_xy = base_env.get_body_linear_velocity()[:2]
         current_ctrl = base_env.get_control_inputs() # Controls applied in the *last* mj_step
 
-        # --- Estimate Orientation ---
-        if _AHRS_AVAILABLE:
-            # Update Madgwick filter state (mutates self.computed_orientation)
-            self.computed_orientation = self.madgwick_filter.updateIMU(
-                q=self.computed_orientation, gyr=gyro, acc=accel
-            )
-            euler_angles = Quaternion(self.computed_orientation).to_angles()
-        else:
-            euler_angles = np.zeros(3) # Placeholder if ahrs not available
+        # --- Get Estimated Orientation from Base Environment ---
+        # The base env's step/reset method handles the Madgwick update
+        euler_angles = base_env.get_estimated_body_orientation_euler()
 
         # --- Get External Control Observation from Info Dict ---
-        external_control_obs = info.get('control_inputs_obs', None)
-        if external_control_obs is None:
-             print(f"Warning: 'control_inputs_obs' not found in info dict.")
-             external_control_obs = np.array([]) # Empty array if not found
-        elif len(external_control_obs) != self._expected_control_obs_size:
-             print(f"Warning: Mismatch in 'control_inputs_obs' size. Expected {self._expected_control_obs_size}, got {len(external_control_obs)}. Padding/truncating.")
-             padded_obs = np.zeros(self._expected_control_obs_size, dtype=np.float32)
-             copy_len = min(len(external_control_obs), self._expected_control_obs_size)
-             padded_obs[:copy_len] = external_control_obs[:copy_len]
-             external_control_obs = padded_obs
-        external_control_obs = external_control_obs.astype(np.float32)
+        # Use the helper function for extraction and validation
+        current_external_control_obs = self._extract_and_validate_external_control(info)
 
-
-        # --- Calculate Control Derivative ---
-        # Uses self.previous_ctrl_po (controls from start of the step)
+        # --- Calculate Derivatives ---
         dt = base_env.get_dt()
         if dt < 1e-9:
             ctrl_derivative = np.zeros_like(current_ctrl)
+            external_control_derivative = np.zeros_like(current_external_control_obs) # ADDED
         else:
             # Derivative uses control state *before* step vs control state *before previous* step
             ctrl_derivative = (current_ctrl - self.previous_ctrl_po) / dt
+            # Derivative uses external control state *from this step* vs *from previous step* # ADDED
+            external_control_derivative = (current_external_control_obs - self.previous_external_control_obs) / dt
 
         # --- Concatenate Observation Frame ---
         single_frame = np.concatenate([
-            gyro,                   # 3
-            accel,                  # 3
-            euler_angles,           # 3
-            body_vel_xy,            # 2
-            current_ctrl,           # nu
-            ctrl_derivative,        # nu
-            external_control_obs    # expected_control_obs_size
+            gyro,                           # 3
+            accel,                          # 3
+            euler_angles,                   # 3 (from base env)
+            body_vel_xy,                    # 2
+            current_ctrl,                   # nu
+            ctrl_derivative,                # nu
+            current_external_control_obs,   # expected_control_obs_size
+            external_control_derivative     # expected_control_obs_size # ADDED
         ]).astype(np.float32)
+
+        # --- Update Previous External Control State for Next Step --- # ADDED
+        self.previous_external_control_obs = current_external_control_obs
 
         # --- Verification (Optional) ---
         expected_single_size = self.observation_space.shape[0] // self.obs_window

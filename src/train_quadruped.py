@@ -50,7 +50,7 @@ def make_env(rank: int, seed: int = 0, env_options: dict = None):
 if __name__ == '__main__':
     # --- Configuration ---
     REAL_TIME_PLOT = False # Set to True for live plotting (can be slow)
-    OUTPUT_FOLDER = './policies/po_vel_ppo_v3' # Choose a new folder name
+    OUTPUT_FOLDER = './policies/po_vel_rand_sac_v1' # Choose a new folder name
     MODEL_FILENAME = 'policy.zip'
     STEPS_FILENAME = 'steps.txt'
     LOGS_SUBDIR = 'logs'
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     CONTROL_LOGIC = VelocityHeadingControls
 
     # Training parameters
-    MODEL_CLASS = PPO # PPO, SAC, TD3, RecurrentPPO
+    MODEL_CLASS = SAC # PPO, SAC, TD3, RecurrentPPO
     POLICY = "MlpPolicy" # "MlpPolicy" or "MlpLstmPolicy" for RecurrentPPO
     TOTAL_TIMESTEPS_PER_LEARN = 500_000 # Timesteps per call to model.learn()
     NUM_LEARN_CALLS = 50 # Total training = TOTAL_TIMESTEPS_PER_LEARN * NUM_LEARN_CALLS
@@ -81,19 +81,31 @@ if __name__ == '__main__':
             'max_z_axis_rotation_angle': 30,
             'max_linear_velocity': 0.1,
             'max_angular_velocity': 0.1,
-            'randomize_joint_angles': True
+            'randomize_joint_angles': True,
+            'friction_range': (0.5, 3), # Friction range for the ground
         },
-        'control_inputs': {             # Options for ControlInputWrapper.sample
-            'min_speed': 0.1,
+        'control_inputs_sampling_options': {             # Options for ControlInputWrapper.sample
+            'min_speed': 0.0,
             'max_speed': 0.5,
-            'fixed_speed': None,
-            #'max_alpha': 180, # Max local velocity angle (relative to heading)
-            'fixed_velocity_angle': 0.0,
-            #'max_theta': 180,
-            'fixed_heading_angle': 0.0,
+            # 'fixed_speed': 0.4,
+            'max_alpha': 15, # Max local velocity angle (relative to heading)
+            # 'fixed_velocity_angle': 0.0,
+            'max_theta': 15,
+            # 'fixed_heading_angle': 0.0,
         }
         # Add other BaseQuadrupedEnv reset options if needed
     }
+
+    RANDOM_FORCE_OPTIONS = {
+            'apply_translational_forces': True,
+            'translational_force_magnitude_range': (3.0, 10.0),
+            'apply_rotational_forces': True,
+            'rotational_force_magnitude_range': (0.1, 0.5),
+            'force_duration_range': (0.1, 0.5), # Shorter duration for force vs impulse
+            'force_interval_range': (1.0, 5.0),
+            'force_body_name': "FRAME",
+            'apply_at_reset': False
+        }
 
     # Evaluation parameters (for saving video)
     EVAL_MAX_TIME = 20.0 # Longer time for evaluation video
@@ -120,8 +132,10 @@ if __name__ == '__main__':
         "reset_options": TRAIN_RESET_OPTIONS,
         "add_reward_wrapper": True, # Rewards needed for training
         "add_po_wrapper": True,     # PO observations needed for training
+        "add_force_wrapper": True,  # Random forces for robustness
         "render_mode": None,        # No rendering during training
         # Add other create_quadruped_env args if needed
+        "random_force_options": RANDOM_FORCE_OPTIONS
     }
     # Use SubprocVecEnv for parallel processing, DummyVecEnv for debugging
     vec_env = SubprocVecEnv([make_env(i, env_options=train_env_options) for i in range(NUM_ENVS)])
@@ -253,6 +267,8 @@ if __name__ == '__main__':
             "reset_options": EVAL_RESET_OPTIONS,
             "add_reward_wrapper": True, # Include wrappers used during training
             "add_po_wrapper": True,
+            "add_force_wrapper": True,
+            "random_force_options": RANDOM_FORCE_OPTIONS,
             "render_mode": "human",
             "save_video": True,
             "video_path": eval_video_path,

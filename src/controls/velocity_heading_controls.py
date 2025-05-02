@@ -3,6 +3,7 @@ import numpy as np
 from typing import Callable, List, Optional, Dict, Any
 
 from .base_controls import BaseControls
+from src.envs.base_quad import QuadrupedEnv
 
 class VelocityHeadingControls(BaseControls):
     """
@@ -16,7 +17,7 @@ class VelocityHeadingControls(BaseControls):
         self.velocity = np.zeros(3)         # Local velocity [vx, vy, vz=0] (relative to heading)
         self.heading = np.array([1.0, 0.0, 0.0]) # Unit heading vector [cos(theta), sin(theta), 0] - Initial forward
         self.global_velocity = np.zeros(3)  # Desired global velocity (3D, with z=0)
-        self.obs_size = 3  # Size of the observation space (vx, vy, theta) - Set in base class now handled via super()
+        self.obs_size = 3 * 2 # Size of the observation space (vx, vy, theta) + errors - Set in base class now handled via super()
         self._update_global_velocity() # Initialize global velocity based on initial heading/velocity
 
     def _update_global_velocity(self):
@@ -102,7 +103,7 @@ class VelocityHeadingControls(BaseControls):
 
         min_speed = options.get('min_speed', 0.0)
         max_speed = options.get('max_speed', 1.0)
-        max_theta = options.get('max_angle', 180)
+        max_theta = options.get('max_theta', 180)
         max_alpha = options.get('max_alpha', 180)
         fixed_heading_angle = options.get('fixed_heading_angle', None)
         fixed_velocity_angle = options.get('fixed_velocity_angle', None) # Angle relative to heading
@@ -132,11 +133,22 @@ class VelocityHeadingControls(BaseControls):
         # Set local velocity (updates velocity and global velocity)
         self.set_velocity_speed_alpha(speed, alpha)
 
-    def get_obs(self) -> np.ndarray:
+    def get_obs(self, env: QuadrupedEnv) -> np.ndarray:
         """Returns the control observation: [local_vx, local_vy, heading_theta]."""
+
+        # Get robot velocity and orientation from the environment
+        velocity = env.get_body_linear_velocity()
+        orientation = env.get_estimated_body_orientation_euler()
+
+        # Calculate velocity errors and heading error
+        velocity_error = self.velocity - velocity
+        heading_error = self.get_heading_theta() - orientation[2]
+
         return np.concatenate([
             self.velocity[:2],          # Local velocity components
-            [self.get_heading_theta()]  # Global heading angle
+            [self.get_heading_theta()], # Global heading angle
+            velocity_error[:2],         # Velocity error
+            [heading_error],            # Heading error
         ])
 
     def render_geoms(self,

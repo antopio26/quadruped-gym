@@ -10,6 +10,23 @@ import mujoco.viewer
 from typing import Optional, Dict, Callable, Any, Tuple, List
 from src.utils.math_utils import generate_random_quaternion
 
+# AHRS for orientation estimation
+try:
+    from ahrs.filters import Madgwick
+    from ahrs.common import Quaternion
+    _AHRS_AVAILABLE = True
+except ImportError:
+    _AHRS_AVAILABLE = False
+    # Define dummy classes if ahrs is not installed
+    class Madgwick:
+        def __init__(self, *args, **kwargs): pass
+        def updateIMU(self, *args, **kwargs): return np.array([1., 0., 0., 0.])
+    class Quaternion:
+        def __init__(self, *args, **kwargs): pass
+        def to_angles(self): return np.zeros(3)
+    print("Warning: 'ahrs' library not found. Orientation estimation in QuadrupedEnv will be disabled (returning zeros).")
+
+
 class QuadrupedEnv(gym.Env):
     """
     Core Gymnasium environment for a MuJoCo-based quadruped simulation.
@@ -19,6 +36,9 @@ class QuadrupedEnv(gym.Env):
     public methods, and handling rendering. Task-specific logic like rewards,
     complex observations, or external control management should be added
     via Gymnasium wrappers.
+
+    Includes basic IMU-based orientation estimation using the Madgwick filter
+    if the 'ahrs' library is installed.
 
     Attributes:
         model (mujoco.MjModel): The loaded MuJoCo model.
@@ -31,6 +51,8 @@ class QuadrupedEnv(gym.Env):
         render_fps (int): Target frames per second for rendering.
         observation_space (gym.spaces.Box): Defines the observation space (defaults to full sensor data).
         action_space (gym.spaces.Box): Defines the action space (based on model actuators).
+        madgwick_filter (Madgwick): Instance of the Madgwick filter for orientation estimation.
+        estimated_orientation_quat (np.ndarray): Estimated orientation quaternion (w, x, y, z).
     """
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
@@ -68,16 +90,16 @@ class QuadrupedEnv(gym.Env):
         self.width = width
         self.height = height
         self.render_fps = render_fps
-        
+
         # Update metadata with the render fps.
         self.metadata["render_fps"] = self.render_fps
-        
+
         self.renderer: Optional[mujoco.Renderer] = None
         self.viewer: Optional[mujoco.viewer.Handle] = None
 
         # Render callbacks
         self._render_callbacks: List[Callable[[], None]] = []
-        
+
         self._sim_start_time: Optional[float] = None
         self._frame_count: int = 0
 
@@ -117,6 +139,15 @@ class QuadrupedEnv(gym.Env):
         self.video_path = video_path
         self.video_writer: Optional[cv2.VideoWriter] = None
 
+        # --- Orientation Estimation ---
+        self.madgwick_filter: Optional[Madgwick] = None
+        self.estimated_orientation_quat = np.array([1., 0., 0., 0.], dtype=np.float64)
+        if _AHRS_AVAILABLE:
+            # Initialize with dummy dt and q0; will be set correctly in reset
+            self.madgwick_filter = Madgwick(Dt=self.get_dt(), q0=self.estimated_orientation_quat)
+        else:
+            self.madgwick_filter = Madgwick() # Dummy filter
+
         # Ensure np_random is initialized by Gymnasium's Env base class
         # self.seed() is deprecated; use super().reset(seed=...)
 
@@ -147,10 +178,12 @@ class QuadrupedEnv(gym.Env):
                                  max_linear_velocity: float = 0.1,
                                  max_angular_velocity: float = 0.1,
                                  randomize_joint_angles: bool = True,
+                                 friction_range: Optional[Tuple[float, float]] = None,
                                 ) -> None:
         """
         Randomly initializes orientation, joint angles, velocities, and controls.
-        
+        Also handles episode-level randomization of friction for ALL geoms.
+
         Args:
             start_height (float): Height of the robot's base above ground.
             mean_z_axis (List[float]): Mean z-axis vector for random orientation.
@@ -159,15 +192,39 @@ class QuadrupedEnv(gym.Env):
             max_linear_velocity (float): Maximum linear velocity for the base.
             max_angular_velocity (float): Maximum angular velocity for the base.
             randomize_joint_angles (bool): Whether to randomize joint angles.
+            friction_range (Optional[Tuple[float, float]]): Range (min, max)
+                for sliding friction randomization applied to *all* geoms.
+                If None, uses model defaults.
         """
+
+        # --- Geom Friction Randomization (Applied to ALL geoms) ---
+        if friction_range is not None:
+            min_friction, max_friction = friction_range
+            if min_friction < 0 or max_friction < 0:
+                 print(f"Warning: Invalid friction range {friction_range}. Must be non-negative. Using model defaults.")
+            elif min_friction > max_friction:
+                 print(f"Warning: Invalid friction range {friction_range}. Min > Max. Using model defaults.")
+            else:
+                # Iterate through all geometries in the model
+                for geom_id in range(self.model.ngeom):
+                    # Sample sliding friction (first component of friction tuple)
+                    sampled_friction = self.np_random.uniform(min_friction, max_friction)
+                    # Keep torsional and rolling friction as defined in the model
+                    current_friction = self.model.geom_friction[geom_id].copy()
+                    current_friction[0] = sampled_friction
+                    # Modify the model's friction property directly for this geom
+                    self.model.geom_friction[geom_id] = current_friction
+                # print(f"Applied friction range [{min_friction:.3f}, {max_friction:.3f}] to all geoms.") # Optional debug
+
+
         # --- Orientation and Base Velocity ---
         self.data.qpos[0:3] = [0, 0, start_height] # Start slightly above ground
-        
+
         mean_axis = np.array(mean_z_axis)  # Default to z-up
         max_axis_angle = np.deg2rad(max_z_axis_variation)  # Maximum angle variation in radians (45)
         max_rotation_angle = np.deg2rad(max_z_axis_rotation_angle)  # Maximum rotation angle in radians (30)
         random_quat = generate_random_quaternion(mean_axis, max_axis_angle, max_rotation_angle)
-        
+
         self.data.qpos[3:7] = random_quat # Initial orientation (w, x, y, z quaternion)
 
         # Randomly set initial linear and angular velocities for the base
@@ -175,7 +232,6 @@ class QuadrupedEnv(gym.Env):
         self.data.qvel[3:6] = self.np_random.uniform(-max_angular_velocity, max_angular_velocity, size=(3,)) # Angular velocity
 
         # --- Joint Angle and Control Initialization ---
-
         if randomize_joint_angles:
             # Define joint limits (radians) and control ranges based on quadruped.xml
             # Note: XML ranges are in degrees, converted here to radians.
@@ -263,6 +319,16 @@ class QuadrupedEnv(gym.Env):
             mujoco.mj_forward(self.model, self.data)
 
 
+        # --- Reset Orientation Estimation ---
+        # Use the actual initial orientation after potential randomization
+        initial_quat = self.get_body_orientation_quat().astype(np.float64)
+        self.estimated_orientation_quat = initial_quat
+        if _AHRS_AVAILABLE and self.madgwick_filter is not None:
+            # Re-initialize the filter with correct dt and initial quaternion
+            self.madgwick_filter = Madgwick(Dt=self.get_dt(), q0=initial_quat)
+        elif not _AHRS_AVAILABLE:
+             self.madgwick_filter = Madgwick() # Ensure dummy filter is reset
+
         # Reset simulation time and rendering state
         self.data.time = 0.0
         self._frame_count = 0
@@ -331,8 +397,19 @@ class QuadrupedEnv(gym.Env):
         return self._get_vec3_sensor("body_pos").copy()
 
     def get_body_orientation_quat(self) -> np.ndarray:
-        """Returns the global orientation of the body as a quaternion (w, x, y, z)."""
+        """Returns the global orientation of the body as a quaternion (w, x, y, z) from sensors."""
         return self._get_vec4_sensor("body_quat").copy()
+
+    def get_estimated_body_orientation_euler(self) -> np.ndarray:
+        """
+        Returns the estimated body orientation as Euler angles (roll, pitch, yaw)
+        using the Madgwick filter. Returns zeros if 'ahrs' is not installed.
+        """
+        if _AHRS_AVAILABLE and self.madgwick_filter is not None:
+            # Convert the current estimated quaternion to Euler angles
+            return Quaternion(self.estimated_orientation_quat).to_angles()
+        else:
+            return np.zeros(3) # Placeholder if ahrs not available or filter not init
 
     def get_body_x_axis(self) -> np.ndarray:
         """Returns the body's local X-axis vector in the global frame."""
@@ -390,8 +467,21 @@ class QuadrupedEnv(gym.Env):
         """Checks if the episode should be truncated (e.g., time limit reached)."""
         return self.get_time() >= self.max_time
 
+    def _update_orientation_estimation(self):
+        """Internal helper to update the Madgwick filter state."""
+        if _AHRS_AVAILABLE and self.madgwick_filter is not None:
+            accel = self.get_body_linear_acceleration()
+            gyro = self.get_body_angular_velocity()
+            # Update Madgwick filter state (mutates self.estimated_orientation_quat)
+            # Note: The filter uses the state *before* the current step's IMU readings
+            # to predict the orientation *after* the step.
+            self.estimated_orientation_quat = self.madgwick_filter.updateIMU(
+                q=self.estimated_orientation_quat, gyr=gyro, acc=accel
+            )
+        # If not available, self.estimated_orientation_quat remains the initial value or zeros
+
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
-        """Applies action, steps simulation, returns results."""
+        """Applies action, steps simulation, updates orientation estimate, returns results."""
         if action is not None:
             # Clip the action to the valid range.
             action = np.clip(action, self.action_space.low, self.action_space.high)
@@ -416,6 +506,10 @@ class QuadrupedEnv(gym.Env):
             info["mujoco_error"] = str(e)
             return observation, reward, terminated, truncated, info
 
+        # --- Update Orientation Estimation ---
+        # Call this *after* stepping the physics and *before* getting the observation
+        # that might depend on the estimated orientation (e.g., in wrappers).
+        self._update_orientation_estimation()
 
         # Get observation, termination, truncation, and info
         observation = self._get_obs()
@@ -476,7 +570,7 @@ class QuadrupedEnv(gym.Env):
 
         if scns is None: return # No active scenes
 
-        for scn in scns:    
+        for scn in scns:
             if scn.ngeom >= scn.maxgeom: return
 
             idx = scn.ngeom
