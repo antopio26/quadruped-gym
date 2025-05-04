@@ -18,7 +18,7 @@ def dot_product_tolerance(x, tolerance_margin=0.1):
         sigmoid='cosine' # Use cosine or linear for finite support
     )
 
-class SequencesRewardWrapper(gym.Wrapper):
+class SequencedRewardWrapper(gym.Wrapper):
     """
     Adds walking-specific sequenced rewards conditions to a quadruped env.
 
@@ -114,14 +114,14 @@ class SequencesRewardWrapper(gym.Wrapper):
         
         return float(dot_product_tolerance(np.dot(body_x_axis_xy, heading_xy)))
 
-    def _body_height_reward(self, target_height: float = 0.145, tolerance_margin: float = 0.02) -> float:
+    def _body_height_reward(self, target_height: float = 0.13, tolerance_margin: float = 0.0) -> float:
         """Calculates the cost based on the distance from the target height."""
         current_height = self.env.unwrapped.get_body_position()[2]
 
         mapped_diff = tolerance(
             current_height,
             bounds=(target_height - tolerance_margin, target_height + tolerance_margin),
-            margin=target_height,
+            margin=target_height / 2,
             value_at_margin=0.1,
             sigmoid='gaussian'
         )
@@ -131,7 +131,7 @@ class SequencesRewardWrapper(gym.Wrapper):
     def _orientation_reward(self) -> float:
         """Calculates the reward based on the orientation."""
         zaxis = dot_product_tolerance(self.env.unwrapped.get_body_z_axis()[2])
-        height_reward = self._body_height_reward()
+        height_reward = self._body_height_reward() # 0.145, 0.02
 
         return float(0.5 * zaxis * height_reward + 0.5 * zaxis)
 
@@ -167,7 +167,7 @@ class SequencesRewardWrapper(gym.Wrapper):
         mapped_direction_reward = dot_product_tolerance(direction_reward)
 
         # Calculate speed component
-        speed_reward = np.abs(vel_norm - target_vel_norm) / (target_vel_norm) if target_vel_norm > 0 else vel_norm
+        speed_reward = np.abs(vel_norm - target_vel_norm) / (target_vel_norm) if target_vel_norm > 0.2 else (vel_norm * 5.0)
         mapped_speed_reward = tolerance(
             speed_reward,
             bounds=(-np.inf, 0.0),
@@ -214,16 +214,16 @@ class SequencesRewardWrapper(gym.Wrapper):
         # --- Map the reward components between 0 and 1 using dm_control tolerance function ---
         control_cost = tolerance(
             self._control_cost(),
-            bounds=(1, 4),
-            margin=2,
+            bounds=(0, 1),
+            margin=4,
             value_at_margin=0.1,
             sigmoid='gaussian'
         )
 
         posture_cost = tolerance(
             self._joint_posture_cost(),
-            bounds=(0.0, 0.5),
-            margin=1,
+            bounds=(0.0, 0.5), # (0.0, 0.1)
+            margin=1.0, # 0.5
             value_at_margin=0.1,
             sigmoid='gaussian'
         )

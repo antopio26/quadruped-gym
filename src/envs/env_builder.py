@@ -7,7 +7,7 @@ import gymnasium as gym
 from src.envs.base_quad import QuadrupedEnv
 from src.envs.wrappers.control_input import ControlInputWrapper
 from src.envs.wrappers.partial_observation import PartialObservationWrapper
-from src.envs.wrappers.sequenced_rewards import SequencesRewardWrapper
+from src.envs.wrappers.sequenced_rewards import SequencedRewardWrapper
 from src.envs.wrappers.velocity_action import VelocityActionWrapper
 # Import the new wrapper
 from src.envs.wrappers.random_force_disturb import RandomForceDisturbWrapper
@@ -105,7 +105,7 @@ def create_quadruped_env(
 
     # 6. Walking Reward Wrapper (Optional)
     if add_reward_wrapper:
-        env = SequencesRewardWrapper(
+        env = SequencedRewardWrapper(
             env=env
             # Add any reward wrapper specific args here if needed
         )
