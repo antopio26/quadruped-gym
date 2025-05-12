@@ -129,7 +129,7 @@ def run_model_test(model_path: str, obs_window: int):
         CONTROL_LOGIC = VelocityHeadingControls
 
         TEST_RESET_OPTIONS = {
-            'randomize_initial_state': True,
+            'randomize_initial_state': False,
             'initial_state_options': { 'friction_range': (3, 3) },
             'control_inputs_sampling_options': {
                  'max_speed': 0.0, 'fixed_heading_angle': 0.0,

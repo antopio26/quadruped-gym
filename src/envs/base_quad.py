@@ -362,8 +362,8 @@ class QuadrupedEnv(gym.Env):
                     print(f"Warning: Could not launch MuJoCo viewer: {e}")
                     self.viewer = None
             elif self.viewer.is_running():
-                 self.viewer.cam.lookat[:] = self.get_body_position() # Use accessor
-                 self.viewer.sync()
+                self.viewer.cam.lookat[:] = self.get_body_position() # Use accessor
+                self.viewer.sync()
 
 
         # Initialize video writer if saving video

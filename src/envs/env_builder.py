@@ -17,7 +17,7 @@ def create_quadruped_env(
     # --- Base Env Args ---
     model_path: str = "./models/quadruped/scene.xml",
     max_time: float = 10.0,
-    frame_skip: int = 16,
+    frame_skip: int = 10,
     render_mode: Optional[str] = None,
     width: int = 720,
     height: int = 480,

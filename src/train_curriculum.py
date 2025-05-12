@@ -49,7 +49,7 @@ def make_env(rank: int, seed: int = 0, env_options: dict = None):
 if __name__ == '__main__':
     # --- Configuration ---
     REAL_TIME_PLOT = False
-    OUTPUT_FOLDER = './policies/po_vel_stand_walk_omni_sac_v0_curriculum' # Choose a new folder name
+    OUTPUT_FOLDER = './policies/po_vel_curriculum_sac_v2' # Choose a new folder name
     MODEL_FILENAME = 'policy.zip'
     STEPS_FILENAME = 'steps.txt' # Stores completed learn calls (iterations)
     LOGS_SUBDIR = 'logs'
@@ -65,24 +65,12 @@ if __name__ == '__main__':
     # Training parameters
     MODEL_CLASS = SAC
     POLICY = "MlpPolicy"
-    TOTAL_TIMESTEPS_PER_LEARN = 200_000
-    NUM_LEARN_CALLS = 30 # Total training iterations
+    TOTAL_TIMESTEPS_PER_LEARN = 500_000
+    NUM_LEARN_CALLS = 100 # Total training iterations
     LEARN_KWARGS = {"progress_bar": True}
     VERBOSE = 0
 
-    # --- Base Reset Options (used in later stages) ---
-    BASE_TRAIN_RESET_OPTIONS = {
-        'randomize_initial_state': True,
-        'initial_state_options': {
-            'start_height': 0.25, 'mean_z_axis': [0, 0, 1],
-            'max_z_axis_variation': 45, 'max_z_axis_rotation_angle': 60,
-            'max_linear_velocity': 0.1, 'max_angular_velocity': 0.1,
-            'randomize_joint_angles': True, 'friction_range': (0.5, 5.0),
-        },
-        'control_inputs_sampling_options': {
-            'min_speed': 0.0, 'max_speed': 0.5, 'max_alpha': 60, 'max_theta': 60,
-        }
-    }
+   
     BASE_RANDOM_FORCE_OPTIONS = {
         'apply_translational_forces': True, 'translational_force_magnitude_range': (1.0, 10.0),
         'apply_rotational_forces': True, 'rotational_force_magnitude_range': (0.1, 0.3),
@@ -97,62 +85,153 @@ if __name__ == '__main__':
         {
             "stage_start_iter": 0,
             "name": "Stage 1: Stand Still",
+            "max_time": 5.0,
+            "reset_options": {
+                'randomize_initial_state': True,
+                'initial_state_options': {
+                    'start_height': 0.25,
+                    'max_z_axis_variation': 45,
+                    'max_z_axis_rotation_angle': 15,
+                    'max_linear_velocity': 0.1,
+                    'max_angular_velocity': 0.1,
+                    'randomize_joint_angles': True,
+                    'friction_range': (0.5, 5.0)
+                },
+                'control_inputs_sampling_options': {
+                    'fixed_speed': 0.0,
+                    'fixed_velocity_angle': 0.0,
+                    # 'fixed_heading_angle': 0.0
+                    'max_theta': 15,
+                }
+            },
+            "add_force_wrapper": False,
+            "random_force_options": None
+        },
+        {
+            "stage_start_iter": 5,
+            "name": "Stage 2: Heading Control",
+            "max_time": 8.0,
+            "reset_options": {
+                'randomize_initial_state': True,
+                'initial_state_options': {
+                    'start_height': 0.25,
+                    'max_z_axis_variation': 45,
+                    'max_z_axis_rotation_angle': 180,
+                    'max_linear_velocity': 0.1,
+                    'max_angular_velocity': 0.1,
+                    'randomize_joint_angles': True,
+                    'friction_range': (0.5, 5.0)
+                },
+                'control_inputs_sampling_options': {
+                    'fixed_speed': 0.0,
+                    'fixed_velocity_angle': 0.0,
+                    'max_theta': 180,
+                }
+            },
+            "add_force_wrapper": False,
+            "random_force_options": None
+        },
+        {
+            "stage_start_iter": 20,
+            "name": "Stage 3: Moderate Semi-Omni Walk",
             "max_time": 10.0,
             "reset_options": {
                 'randomize_initial_state': True,
-                'initial_state_options': { 'start_height': 0.25, 'max_z_axis_variation': 5, 'max_linear_velocity': 0.0, 'max_angular_velocity': 0.0, 'randomize_joint_angles': False, 'friction_range': (1.0, 1.0) },
-                'control_inputs_sampling_options': { 'fixed_speed': 0.0, 'fixed_velocity_angle': 0.0, 'fixed_heading_angle': 0.0 }
+                'initial_state_options': {
+                    'start_height': 0.25,
+                    'max_z_axis_variation': 45,
+                    'max_z_axis_rotation_angle': 180,
+                    'max_linear_velocity': 0.1,
+                    'max_angular_velocity': 0.1,
+                    'randomize_joint_angles': True,
+                    'friction_range': (0.5, 5.0)
+                },
+                'control_inputs_sampling_options': {
+                    'min_speed': 0.0,
+                    'max_speed': 0.35,
+                    'max_alpha': 45,
+                    'max_theta': 180
+                }
             },
             "add_force_wrapper": False,
             "random_force_options": None
         },
         {
-            "stage_start_iter": 5, # Start after 5 learn calls
-            "name": "Stage 2: Slow Walk Forward",
+            "stage_start_iter": 40,
+            "name": "Stage 4: Semi-Omni Walk",
             "max_time": 15.0,
             "reset_options": {
                 'randomize_initial_state': True,
-                'initial_state_options': { 'start_height': 0.25, 'max_z_axis_variation': 15, 'max_linear_velocity': 0.05, 'max_angular_velocity': 0.05, 'randomize_joint_angles': True, 'friction_range': (0.8, 1.5) },
-                'control_inputs_sampling_options': { 'min_speed': 0.0, 'max_speed': 0.2, 'max_alpha': 10, 'max_theta': 10 }
+                'initial_state_options': {
+                    'start_height': 0.25,
+                    'max_z_axis_variation': 45,
+                    'max_z_axis_rotation_angle': 180,
+                    'max_linear_velocity': 0.1,
+                    'max_angular_velocity': 0.1,
+                    'randomize_joint_angles': True,
+                    'friction_range': (0.5, 5.0)
+                },
+                'control_inputs_sampling_options': {
+                    'min_speed': 0.0,
+                    'max_speed': 0.5,
+                    'max_alpha': 90,
+                    'max_theta': 180
+                }
             },
             "add_force_wrapper": False,
             "random_force_options": None
         },
         {
-            "stage_start_iter": 10, # Start after 10 learn calls
-            "name": "Stage 3: Moderate Omni Walk",
+            "stage_start_iter": 60,
+            "name": "Stage 5: Omni Walk",
             "max_time": 20.0,
             "reset_options": {
                 'randomize_initial_state': True,
-                'initial_state_options': { 'start_height': 0.25, 'max_z_axis_variation': 30, 'max_z_axis_rotation_angle': 45, 'max_linear_velocity': 0.1, 'max_angular_velocity': 0.1, 'randomize_joint_angles': True, 'friction_range': (0.6, 2.0) },
-                'control_inputs_sampling_options': { 'min_speed': 0.0, 'max_speed': 0.35, 'max_alpha': 45, 'max_theta': 45 }
+                'initial_state_options': {
+                    'start_height': 0.25,
+                    'max_z_axis_variation': 45,
+                    'max_z_axis_rotation_angle': 180,
+                    'max_linear_velocity': 0.1,
+                    'max_angular_velocity': 0.1,
+                    'randomize_joint_angles': True,
+                    'friction_range': (0.5, 5.0)
+                },
+                'control_inputs_sampling_options': {
+                    'min_speed': 0.0,
+                    'max_speed': 0.5,
+                    'max_alpha': 180,
+                    'max_theta': 180
+                }
             },
             "add_force_wrapper": False,
             "random_force_options": None
         },
         {
-            "stage_start_iter": 15, # Start after 15 learn calls
-            "name": "Stage 4: Full Randomization (No Forces)",
-            "max_time": MAX_TIME, # Use original max_time
-            "reset_options": BASE_TRAIN_RESET_OPTIONS, # Use the full base options
-            "add_force_wrapper": False,
-            "random_force_options": None
-        },
-        {
-            "stage_start_iter": 20, # Start after 20 learn calls
-            "name": "Stage 5: Full Randomization + Forces",
-            "max_time": MAX_TIME,
-            "reset_options": BASE_TRAIN_RESET_OPTIONS,
-            "add_force_wrapper": True, # Enable forces
+            "stage_start_iter": 80,
+            "name": "Stage 6: Omni Walk Forces",
+            "max_time": 20.0,
+            "reset_options": {
+                'randomize_initial_state': True,
+                'initial_state_options': {
+                    'start_height': 0.25,
+                    'max_z_axis_variation': 45,
+                    'max_z_axis_rotation_angle': 180,
+                    'max_linear_velocity': 0.1,
+                    'max_angular_velocity': 0.1,
+                    'randomize_joint_angles': True,
+                    'friction_range': (0.5, 5.0)
+                },
+                'control_inputs_sampling_options': {
+                    'min_speed': 0.0,
+                    'max_speed': 0.5,
+                    'max_alpha': 180,
+                    'max_theta': 180
+                }
+            },
+            "add_force_wrapper": True,
             "random_force_options": BASE_RANDOM_FORCE_OPTIONS
-        }
+        },
     ]
-
-    # Evaluation parameters (use final stage settings or define separately)
-    EVAL_MAX_TIME = 20.0
-    EVAL_RESET_OPTIONS = BASE_TRAIN_RESET_OPTIONS # Evaluate with full randomization
-    EVAL_RANDOM_FORCE_OPTIONS = BASE_RANDOM_FORCE_OPTIONS
-    EVAL_ADD_FORCE_WRAPPER = True # Match final training stage potentially
 
     # --- Setup Output Directories ---
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
@@ -340,35 +419,36 @@ if __name__ == '__main__':
         print("Evaluating model and saving video...")
         eval_video_path = os.path.join(video_path_base, f'run_iter_{i}.mp4')
 
+        # Get parameters from the current training stage for evaluation
+        current_stage_params = curriculum_stages[current_stage_index]
+
         # Create a single evaluation environment (using defined eval settings)
         eval_env_options = {
-            "max_time": EVAL_MAX_TIME,
+            "max_time": current_stage_params["max_time"],
             "obs_window": OBS_WINDOW,
             "control_logic_class": CONTROL_LOGIC,
-            "reset_options": EVAL_RESET_OPTIONS,
+            "reset_options": current_stage_params["reset_options"],
             "add_reward_wrapper": True, # Keep wrappers consistent if needed for obs/info
             "add_po_wrapper": True,
-            "add_force_wrapper": EVAL_ADD_FORCE_WRAPPER,
-            "random_force_options": EVAL_RANDOM_FORCE_OPTIONS,
-            "render_mode": "rgb_array", # Use rgb_array for saving video
-            "save_video": True,
+            "add_force_wrapper": current_stage_params["add_force_wrapper"],
+            "random_force_options": current_stage_params.get("random_force_options"),
+            "render_mode": "human",     # Change to human for real-time display
+            "save_video": True,        # Disable video saving when rendering human
             "video_path": eval_video_path,
             "width": 720, "height": 480,
         }
 
-        # Use DummyVecEnv for evaluation as it's just one env
-        eval_env = DummyVecEnv([lambda: create_quadruped_env(**eval_env_options)])
-        # Or create directly if not using VecEnv wrappers for eval:
-        # eval_env = create_quadruped_env(**eval_env_options)
+        # Create the environment directly for human rendering
+        print("Creating direct evaluation environment with human rendering...")
+        eval_env = create_quadruped_env(**eval_env_options)
 
         try:
-            obs = eval_env.reset()
-            # Need to get the underlying env's render method if using VecEnv
-            # base_eval_env = eval_env.envs[0] if isinstance(eval_env, DummyVecEnv) else eval_env
-
-            # Start video saving if using direct env creation
-            # if not isinstance(eval_env, DummyVecEnv) and eval_env.save_video:
-            #    eval_env.start_video_saving()
+            # Unpack the tuple returned by gym.Env.reset()
+            obs, info = eval_env.reset()
+            # For MuJoCo environments, render() might not be needed explicitly in the loop
+            # if render_mode='human' is set during creation, but calling it ensures rendering.
+            # If it renders automatically, you can remove the eval_env.render() call below.
+            eval_env.render() # Initial render
 
             done = False
             eval_step_count = 0
@@ -376,12 +456,12 @@ if __name__ == '__main__':
                 action, _state = model.predict(obs, deterministic=True) # Use deterministic for eval
                 obs, reward, terminated, truncated, info = eval_env.step(action)
                 # Render is handled internally by the env when save_video=True and render_mode='rgb_array'
-                # If using render_mode='human', call eval_env.render() here.
-                done = terminated[0] or truncated[0] # VecEnv returns arrays
+                # For render_mode='human', call eval_env.render() explicitly if needed.
+                eval_env.render()
+                done = terminated or truncated # Direct env returns booleans
                 eval_step_count += 1
 
-            print(f"Evaluation finished after {eval_step_count} steps. Video saved to {eval_video_path}")
-
+            print(f"Evaluation finished after {eval_step_count} steps.")
         except Exception as e:
             print(f"Error during evaluation/video saving: {e}")
             import traceback

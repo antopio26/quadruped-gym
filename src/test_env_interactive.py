@@ -121,12 +121,12 @@ def run_env_test():
             # Or pass none action to disable control
             # action = None
 
-            if step_count < 50:
-                action = None # No action for the first 10 steps
-            else:
-                action = np.array([1] * env.action_space.shape[0], dtype=np.float32) # Zero action
+            # if step_count < 50:
+            #     action = None # No action for the first 10 steps
+            # else:
+            #     action = np.array([1] * env.action_space.shape[0], dtype=np.float32) # Zero action
 
-            action = None
+            action = np.array([0.0, 0.0, -0.5] * 4, dtype=np.float32) # Zero action
 
             # --- Step the Environment ---
             # We don't need the returned values for this simple test

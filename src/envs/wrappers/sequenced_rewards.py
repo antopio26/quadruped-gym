@@ -114,7 +114,7 @@ class SequencedRewardWrapper(gym.Wrapper):
         
         return float(dot_product_tolerance(np.dot(body_x_axis_xy, heading_xy)))
 
-    def _body_height_reward(self, target_height: float = 0.13, tolerance_margin: float = 0.0) -> float:
+    def _body_height_reward(self, target_height: float = 0.135, tolerance_margin: float = 0.01) -> float:
         """Calculates the cost based on the distance from the target height."""
         current_height = self.env.unwrapped.get_body_position()[2]
 
@@ -150,7 +150,19 @@ class SequencedRewardWrapper(gym.Wrapper):
         """Calculates the cost based on the difference from the target posture."""
         current_joint_angles = self.env.unwrapped.get_control_inputs()
         cost = np.sum(np.abs(current_joint_angles - self.joint_centers))
-        return float(cost / self.env.action_space.shape[0]) if self.env.action_space.shape[0] > 0 else 0.0
+        
+        normalized_cost = float(cost / self.env.action_space.shape[0]) if self.env.action_space.shape[0] > 0 else 0.0
+        target_speed = np.linalg.norm(self.control_logic.velocity)
+
+        mapped_cost = tolerance(
+            normalized_cost,
+            bounds=(0.0, target_speed + 0.1), # (0.0, 0.5)
+            margin=1.5 * target_speed + 0.5, # 1.0
+            value_at_margin=0.1,
+            sigmoid='gaussian'
+        )
+
+        return float(mapped_cost)
 
     def _velocity_reward(self) -> float:
         """Calculates the reward based on the velocity."""
@@ -220,19 +232,14 @@ class SequencedRewardWrapper(gym.Wrapper):
             sigmoid='gaussian'
         )
 
-        posture_cost = tolerance(
-            self._joint_posture_cost(),
-            bounds=(0.0, 0.5), # (0.0, 0.1)
-            margin=1.0, # 0.5
-            value_at_margin=0.1,
-            sigmoid='gaussian'
-        )
-
-        behavior_reward = (control_cost + posture_cost + control_cost * posture_cost) / 3.0
 
         orientation_reward = self._orientation_reward()     # R_o
         heading_reward = self._heading_reward()             # R_h
         velocity_reward = self._velocity_reward()           # R_v
+
+        posture_cost = self._joint_posture_cost()           # R_p
+
+        behavior_reward = (control_cost + posture_cost + control_cost * posture_cost) / 3.0
 
         # --- Define the components ---
         components = {

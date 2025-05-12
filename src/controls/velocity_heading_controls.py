@@ -68,7 +68,7 @@ class VelocityHeadingControls(BaseControls):
         alpha = np.arctan2(self.global_velocity[1], self.global_velocity[0])
         return speed, alpha
 
-    def get_velocity_alpha_speed(self) -> tuple[float, float]:
+    def get_velocity_speed_alpha(self) -> tuple[float, float]:
         """
         Returns the local velocity (relative to heading) in polar coordinates (speed and angle).
         """

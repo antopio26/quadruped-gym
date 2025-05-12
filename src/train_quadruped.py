@@ -66,7 +66,7 @@ if __name__ == '__main__':
     # Training parameters
     MODEL_CLASS = SAC # PPO, SAC, TD3, RecurrentPPO
     POLICY = "MlpPolicy" # "MlpPolicy" or "MlpLstmPolicy" for RecurrentPPO
-    TOTAL_TIMESTEPS_PER_LEARN = 200_000 # Timesteps per call to model.learn()
+    TOTAL_TIMESTEPS_PER_LEARN = 500_000 # Timesteps per call to model.learn()
     NUM_LEARN_CALLS = 20 # Total training = TOTAL_TIMESTEPS_PER_LEARN * NUM_LEARN_CALLS
     LEARN_KWARGS = {"progress_bar": True} # Add other learn kwargs if needed
     VERBOSE = 0 # Verbosity level (0=none, 1=info, 2=debug)

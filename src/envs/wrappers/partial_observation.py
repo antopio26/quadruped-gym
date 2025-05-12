@@ -76,7 +76,7 @@ class PartialObservationWrapper(gym.ObservationWrapper):
         single_obs_size += self.env.action_space.shape[0] # Current control command
         single_obs_size += self.env.action_space.shape[0] # Control command derivative
         single_obs_size += self._expected_control_obs_size # External controls (from info)
-        single_obs_size += self._expected_control_obs_size # External controls derivative (from info) # ADDED
+        single_obs_size += self._expected_control_obs_size # External controls derivative (from info)
 
         total_obs_size = single_obs_size * self.obs_window
         self.observation_space = spaces.Box(
