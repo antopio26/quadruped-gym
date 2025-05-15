@@ -300,7 +300,7 @@ if __name__ == "__main__":
     # Configure AXIS_PURPOSE_MAPPING and AXIS_INVERSION above as needed.
 
     # Path to the trained model policy
-    MODEL_TO_TEST = '../policies/po_vel_stand_walk_sac_v0/policy.zip' # UPDATE THIS PATH
+    MODEL_TO_TEST = '../policies/po_vel_stand_walk_sac_v0_(controllable)/policy.zip' # UPDATE THIS PATH
 
     # Observation window size used during the training of the loaded model
     OBS_WINDOW_USED_IN_TRAINING = 1 # UPDATE THIS VALUE if different

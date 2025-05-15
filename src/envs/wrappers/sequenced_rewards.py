@@ -148,16 +148,29 @@ class SequencedRewardWrapper(gym.Wrapper):
     
     def _joint_posture_cost(self) -> float:
         """Calculates the cost based on the difference from the target posture."""
+        if not hasattr(self.control_logic, 'heading') or not hasattr(self.control_logic, 'velocity'): return 0.0
+
         current_joint_angles = self.env.unwrapped.get_control_inputs()
         cost = np.sum(np.abs(current_joint_angles - self.joint_centers))
         
         normalized_cost = float(cost / self.env.action_space.shape[0]) if self.env.action_space.shape[0] > 0 else 0.0
         target_speed = np.linalg.norm(self.control_logic.velocity)
+        
+        body_x_axis_xy = self.env.unwrapped.get_body_x_axis()[:2]
+        heading_xy = self.control_logic.heading[:2]
+
+        heading_error = 1 - ((np.dot(body_x_axis_xy, heading_xy) + 1) / 2.0) # Normalize to [0, 1]
+
+        # Calculate the freedom coefficient based on target speed and heading error
+        # this allows more freedom of movement when the target speed is high or the heading error is high
+        # while when the robot is supposed to be still, the freedom coefficient is low
+        # so that posture is imposed more strongly 
+        freedom_coeff = max(target_speed, np.pow(heading_error, 0.8) / 2.0)
 
         mapped_cost = tolerance(
             normalized_cost,
-            bounds=(0.0, target_speed + 0.1), # (0.0, 0.5)
-            margin=1.5 * target_speed + 0.5, # 1.0
+            bounds=(0.0, (freedom_coeff / 2.0) + 0.0), # (0.0, 0.5)
+            margin= 1.0 * freedom_coeff + 0.5, # 1.0
             value_at_margin=0.1,
             sigmoid='gaussian'
         )
@@ -245,7 +258,7 @@ class SequencedRewardWrapper(gym.Wrapper):
         components = {
             # "orientation_step": orientation_reward, # * control_cost,
             # "heading_step": orientation_reward * heading_reward, # * control_cost,
-            "velocity_step": orientation_reward * heading_reward * velocity_reward * posture_cost,
+            "velocity_step_posture": orientation_reward * heading_reward * velocity_reward * posture_cost,
         }
 
         return components

@@ -49,7 +49,7 @@ def make_env(rank: int, seed: int = 0, env_options: dict = None):
 if __name__ == '__main__':
     # --- Configuration ---
     REAL_TIME_PLOT = False
-    OUTPUT_FOLDER = './policies/po_vel_curriculum_sac_v2' # Choose a new folder name
+    OUTPUT_FOLDER = './policies/po_vel_curriculum_sac_v3' # Choose a new folder name
     MODEL_FILENAME = 'policy.zip'
     STEPS_FILENAME = 'steps.txt' # Stores completed learn calls (iterations)
     LOGS_SUBDIR = 'logs'
@@ -69,7 +69,6 @@ if __name__ == '__main__':
     NUM_LEARN_CALLS = 100 # Total training iterations
     LEARN_KWARGS = {"progress_bar": True}
     VERBOSE = 0
-
    
     BASE_RANDOM_FORCE_OPTIONS = {
         'apply_translational_forces': True, 'translational_force_magnitude_range': (1.0, 10.0),

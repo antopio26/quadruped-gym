@@ -50,7 +50,7 @@ def make_env(rank: int, seed: int = 0, env_options: dict = None):
 if __name__ == '__main__':
     # --- Configuration ---
     REAL_TIME_PLOT = False # Set to True for live plotting (can be slow)
-    OUTPUT_FOLDER = './policies/po_vel_stand_walk_omni_sac_v0' # Choose a new folder name
+    OUTPUT_FOLDER = './policies/po_vel_test_v0' # Choose a new folder name
     MODEL_FILENAME = 'policy.zip'
     STEPS_FILENAME = 'steps.txt'
     LOGS_SUBDIR = 'logs'
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     # Training parameters
     MODEL_CLASS = SAC # PPO, SAC, TD3, RecurrentPPO
     POLICY = "MlpPolicy" # "MlpPolicy" or "MlpLstmPolicy" for RecurrentPPO
-    TOTAL_TIMESTEPS_PER_LEARN = 500_000 # Timesteps per call to model.learn()
+    TOTAL_TIMESTEPS_PER_LEARN = 200_000 # Timesteps per call to model.learn()
     NUM_LEARN_CALLS = 20 # Total training = TOTAL_TIMESTEPS_PER_LEARN * NUM_LEARN_CALLS
     LEARN_KWARGS = {"progress_bar": True} # Add other learn kwargs if needed
     VERBOSE = 0 # Verbosity level (0=none, 1=info, 2=debug)
