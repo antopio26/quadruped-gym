@@ -16,10 +16,11 @@ build: ## Build release container
 		--file $(DOCKERFILE) \
 		.
 
-run: ## Run a disposable development container
+run-dev: ## Run a disposable development container
 	@xhost +local:docker
 	@docker run -it --user=root \
 		--runtime nvidia \
+		--privileged \
 		--rm \
 		--network host \
 		--ipc=host \
@@ -31,6 +32,24 @@ run: ## Run a disposable development container
 		-e XAUTHORITY=/root/.Xauthority \
 		-e __GLX_VENDOR_LIBRARY_NAME=nvidia \
 		$(CONTAINER_IMAGE)
+
+run: ## Run a disposable container
+	@xhost +local:docker
+	@docker run -it --user=root \
+		--runtime nvidia \
+		--privileged \
+		--rm \
+		--network host \
+		--ipc=host \
+		--gpus all \
+		-v ./:/workspace \
+		-v /tmp/.X11-unix:/tmp/.X11-unix \
+		-v ~/.Xauthority:/root/.Xauthority \
+		-e DISPLAY=$$DISPLAY \
+		-e XAUTHORITY=/root/.Xauthority \
+		-e __GLX_VENDOR_LIBRARY_NAME=nvidia \
+		$(CONTAINER_IMAGE) \
+		python3 src/train_curriculum.py
 
 clean: ## Clean image artifacts
 	-docker rmi $(CONTAINER_IMAGE)

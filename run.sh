@@ -2,6 +2,7 @@ docker run -it --user=root \
   --runtime nvidia \
   --rm \
   --network host \
+  --privileged \
   --ipc=host \
   --gpus all \
   -v ./:/workspace \
