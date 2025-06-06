@@ -241,7 +241,7 @@ def run_model_test(model_path: str, obs_window: int):
             controls.set_velocity_xy(target_vx, target_vy) # Use set_velocity_xy
 
             # --- Get Action from Model ---
-            action, _states = model.predict(obs, deterministic=True)
+            action, _states = model.predict(obs, deterministic=False)
 
             # --- Step the Environment ---
             obs, reward, terminated, truncated, info = env.step(action)
@@ -300,7 +300,7 @@ if __name__ == "__main__":
     # Configure AXIS_PURPOSE_MAPPING and AXIS_INVERSION above as needed.
 
     # Path to the trained model policy
-    MODEL_TO_TEST = '../policies/po_vel_stand_walk_sac_v0_(controllable)/policy.zip' # UPDATE THIS PATH
+    MODEL_TO_TEST = '../policies/exam_test_v0/policy.zip' # UPDATE THIS PATH
 
     # Observation window size used during the training of the loaded model
     OBS_WINDOW_USED_IN_TRAINING = 1 # UPDATE THIS VALUE if different
